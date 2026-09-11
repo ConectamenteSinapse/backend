@@ -38,7 +38,7 @@ const getAllUsuarios = (req, res) =>{
     return res.status(200).json(usuarios)
 }
 //funcao para listar o usuario pelo ID
-const getUsuarioByID = (req, res)=>{
+const getUsuarioById = (req, res)=>{
     const id = Number(req.params.id);
     const usuario = usuarios.find((usuario) => usuario.id === id)
     if (!usuario){
@@ -101,7 +101,7 @@ const putUsuarioById = (req, res)=>{
     usuario.perfil = perfil
 
     
-    return res.status(201).json(usuario)
+    return res.status(200).json(usuario)
 }
 
 // funcao para atualizar campo especifico do usuario
@@ -109,7 +109,7 @@ const patchUsuarioById = (req,res)=>{
     const id = Number(req.params.id)
     
     const usuario = usuarios.find((usuario)=> usuario.id === id)
-    if (!usuario){ res.status(404).json({ mensagem : "Usuario nao encontrado"})}
+    if (!usuario){ return res.status(404).json({ mensagem : "Usuario nao encontrado"})}
     
     if (req.body.nome !== undefined){
         usuario.nome = req.body.nome
@@ -142,4 +142,4 @@ const deleteUsuarioById =(req,res)=>{
     // Retorna 204
     return res.sendStatus(204)
 }
-export default {getAllUsuarios, getUsuarioByID, postUsuario, putUsuarioById, patchUsuarioById}
+export default {getAllUsuarios, getUsuarioById, postUsuario, putUsuarioById, patchUsuarioById, deleteUsuarioById}
