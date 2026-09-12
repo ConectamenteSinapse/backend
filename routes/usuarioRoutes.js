@@ -9,10 +9,8 @@ const router = express.Router();
 // Rota para listar todos os usuarios:
 router.get("/", usuarioController.getAllUsuarios)
 
-
 //rota para um usuario em especifico:
 router.get("/:id", usuarioController.getUsuarioById )
-
 
 // Rota POST para cadastro de um novo usuario
 router.post("/", usuarioController.postUsuario )
@@ -25,7 +23,6 @@ router.patch("/:id", usuarioController.patchUsuarioById)
 
 //rota delete
 router.delete("/:id", usuarioController.deleteUsuarioById)
-
 
 //Exportando o router para ser usado em outros lugares
 export default router

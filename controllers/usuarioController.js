@@ -1,8 +1,6 @@
 // importando o usuarioService
 import usuarioService from "../services/usuarioService.js"
 
-
-
 // funcao para listar todos os usuarios
 const getAllUsuarios = (req, res) =>{
     //busca os usuarios no usuarioService
