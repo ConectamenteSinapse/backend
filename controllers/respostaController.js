@@ -29,7 +29,9 @@ const getRespostasByTarefaId = (req,res) => {
             mensagem: "Tarefa não encontrada"
         })
     }
-    const respostas = respostaService.getRespostasByTarefaId(tarefaId)
+
+    //busaca as repostas pela tarefaId porem sem dar o campo correto
+    const respostas = respostaService.getRespostasByTarefaIdSemCorreta(tarefaId)
     if(respostas.length === 0){
         return res.status(200).json({mensagem : "Nao existem nenhuma resposta para essa tarefa", respostas : []})
     }

@@ -61,4 +61,24 @@ const getRespostasByTarefaId = (tarefaId)=>{
     const respostasDaTarefa = respostas.filter((resposta)=> resposta.tarefaId === tarefaId)
     return respostasDaTarefa
 }
-export default {getAllRespostas, getRespostaById, getRespostasByTarefaId}
+
+// funcao para "Mascarar" o "correta: true || false"
+const mascaraCampoCorreta = (resposta) => {
+    return {
+        id: resposta.id,
+        tarefaId: resposta.tarefaId,
+        texto: resposta.texto,
+        ordem: resposta.ordem 
+    }
+}
+
+
+// funcao  que pega as repostas SEM  o campo correto de uma determinada tarefaId
+const getRespostasByTarefaIdSemCorreta = (tarefaId)=> {
+    // pega as respostas da tarefaId desejado
+    const respostasDaTarefa = getRespostasByTarefaId(tarefaId)
+    // utiliza a respostas e tira o  o campo Correto aytaves da funcao mascaraCAmpoCorreto
+    const respostasDaTarefaSemCorreta = respostasDaTarefa.map((resposta)=>mascaraCampoCorreta(resposta))
+    return respostasDaTarefaSemCorreta
+}
+export default {getAllRespostas, getRespostaById, getRespostasByTarefaId, getRespostasByTarefaIdSemCorreta}
