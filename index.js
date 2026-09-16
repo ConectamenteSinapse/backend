@@ -4,6 +4,7 @@ import express from "express"
 import usuarioRoutes from "./routes/usuarioRoutes.js"
 import comodoRoutes from "./routes/comodoRoutes.js"
 import tarefaRoutes from "./routes/tarefaRoutes.js"
+import respostaRoutes from "./routes/respostaRoutes.js"
 
 //criarndo a variavel app para configurar o servidor:
 const app = express()
@@ -12,11 +13,11 @@ app.use(express.json())
 // definidnod o a porta que o servidor ficara disponivel, e colocando a variavel de ambiente na porta
 const port = process.env.PORT || 3000
 
-// criando o prefixos para as rotas do usuarioRotes
+// criando o prefixos para as rotas 
 app.use("/usuarios", usuarioRoutes)
 app.use("/comodos", comodoRoutes)
 app.use("/tarefas", tarefaRoutes)
-//array para estudo de usuarios cadastrados
+app.use("/respostas", respostaRoutes)
 
 
 //rota principal
