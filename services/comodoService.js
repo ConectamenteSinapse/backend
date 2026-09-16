@@ -1,3 +1,4 @@
+
 const comodos = [
     {
         id: 1,
@@ -34,4 +35,5 @@ const getComodoById = (id) =>{
     const comodo =  comodos.find((comodo)=>comodo.id === id)
     return comodo
 }
+
 export default { getAllComodos, getComodoById}

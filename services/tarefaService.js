@@ -56,5 +56,9 @@ const getTarefaById = (id) => {
     const tarefa = tarefas.find((tarefa)=> tarefa.id === id)
     return tarefa
 }
-
-export default {getAllTarefas, getTarefaById}
+//funcao responsavel por verificar as tarfas referentes ao comodo
+const getTarefasByComodoId = (comodoId) => {
+    const tarefasDoComodo = tarefas.filter((tarefa)=>tarefa.comodoId === comodoId)
+    return tarefasDoComodo
+}
+export default {getAllTarefas, getTarefaById, getTarefasByComodoId}
