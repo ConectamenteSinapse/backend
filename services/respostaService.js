@@ -81,4 +81,6 @@ const getRespostasByTarefaIdSemCorreta = (tarefaId)=> {
     const respostasDaTarefaSemCorreta = respostasDaTarefa.map((resposta)=>mascaraCampoCorreta(resposta))
     return respostasDaTarefaSemCorreta
 }
+
+
 export default {getAllRespostas, getRespostaById, getRespostasByTarefaId, getRespostasByTarefaIdSemCorreta}
