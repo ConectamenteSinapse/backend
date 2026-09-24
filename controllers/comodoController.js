@@ -13,26 +13,7 @@ const getAllComodos = (req, res) => {
 const getComodoById = (req, res) => {
   const id = Number(req.params.id);
   const comodo = comodoService.getComodoById(id);
-  if (!comodo)                                    {
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
+  if (!comodo) {
     return res.status(404).json({ mensagem: "Comodo nao encontrado" });
   }
   return res.status(200).json(comodo);
