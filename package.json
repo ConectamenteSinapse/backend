@@ -17,7 +17,8 @@
   "scripts": {
     "start": "nodemon index.js",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "dependencies": {
     "dotenv": "^18.0.1",
@@ -27,6 +28,7 @@
     "start": "^5.1.0"
   },
   "devDependencies": {
+    "husky": "^9.1.7",
     "prettier": "^3.9.9"
   }
 }
