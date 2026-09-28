@@ -1,14 +1,38 @@
 import mongoose from "mongoose";
 
 const comodoSchema = new mongoose.Schema({
-  nome: String,
-  descricao: String,
-  imagemCenario: String,
-  ordem: Number,
-  dificuldadesDisponiveis: [String],
-  ativo: Boolean,
-});
+    nome: {
+        type: String,
+        required: true
+    },
 
-const Comodo = mongoose.model("Comodo", comodoSchema);
+    descricao: {
+        type: String,
+        required: true
+    },
 
-export default Comodo;
+    imagemCenario: {
+        type: String,
+        required: true
+    },
+
+    ordem: {
+        type: Number,
+        required: true
+    },
+
+    dificuldadesDisponiveis: {
+        type: [String],
+        required: true,
+        enum: ["facil", "medio", "dificil"]
+    },
+
+    ativo: {
+        type: Boolean,
+        default: true
+    }
+})
+
+const ComodoModel = mongoose.model("Comodo", comodoSchema);
+
+export default ComodoModel; 
