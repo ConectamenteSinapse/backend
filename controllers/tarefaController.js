@@ -2,15 +2,21 @@ import tarefaService from "../services/tarefaService.js";
 
 // funcao para tratar erros e nao precisar ficar repetindo
 const tratarErro = (error, res) => {
-  if (error.name == "CastError") {
+  if (error.name === "CastError") {
     return res
       .status(400)
       .json({ mensagem: "ID invalido", erro: error.message });
   }
-  if (error.name == "ValidationError") {
+  if (error.name === "ValidationError") {
     return res
       .status(400)
       .json({ mensagem: "Erro da validacao", erro: error.message });
+  }
+  // Erros de regra de negócio, como cômodo inexistente
+  if (error.status === 400) {
+    return res.status(400).json({
+      mensagem: error.message,
+    });
   }
   console.log(error);
   return res.status(500).json({ mensagem: "Erro interno do servidor" });
@@ -60,6 +66,7 @@ const postTarefa = async (req, res) => {
         .json({ erro: "Campos obrigatorios nao preenchidos" });
     }
     const novaTarefa = await tarefaService.postTarefa(dadosTarefa);
+
     return res.status(201).json(novaTarefa);
   } catch (error) {
     return tratarErro(error, res);
@@ -88,7 +95,7 @@ const putTarefaById = async (req, res) => {
     }
     const tarefa = await tarefaService.putTarefaById(id, dadosTarefa);
     if (!tarefa) {
-      res.status(404).json({ erro: "tarefa nao encontrada" });
+      return res.status(404).json({ erro: "tarefa nao encontrada" });
     }
     return res.status(200).json(tarefa);
   } catch (error) {
@@ -108,7 +115,7 @@ const patchTarefaById = async (req, res) => {
     }
     const tarefa = await tarefaService.patchTarefaById(id, dadosAtualizados);
     if (!tarefa) {
-      res.status(404).json({ erro: "tarefa nao encontrada" });
+      return res.status(404).json({ erro: "tarefa nao encontrada" });
     }
     return res.status(200).json(tarefa);
   } catch (error) {
@@ -121,7 +128,7 @@ const deleteTarefaById = async (req, res) => {
   try {
     const tarefaDeletada = await tarefaService.deleteTarefaById(id);
     if (!tarefaDeletada) {
-      res.status(404).json({ erro: "tarefa nao encontrada" });
+      return res.status(404).json({ erro: "tarefa nao encontrada" });
     }
     return res.sendStatus(204);
   } catch (error) {

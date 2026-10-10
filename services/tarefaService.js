@@ -1,5 +1,16 @@
 import TarefaModel from "../models/tarefaModel.js";
+import comodoService from "../services/comodoService.js";
 
+// Verifica se o comodo existe
+const validarComodo = async (comodoId) => {
+  const comodo = await comodoService.getComodoById(comodoId);
+
+  if (!comodo) {
+    const error = new Error("Cômodo não encontrado");
+    error.status = 400;
+    throw error;
+  }
+};
 // funcao para listar todos as tarefas
 const getAllTarefas = async () => {
   const tarefas = await TarefaModel.find();
@@ -20,11 +31,15 @@ const getTarefasByComodoId = async (comodoId) => {
 // funcao para poder cadastrar uma tarefa
 
 const postTarefa = async (dadosTarefa) => {
+  // verificando se o comodo informado existe no Mondgo
+  await validarComodo(dadosTarefa.comodoId);
   const tarefa = await TarefaModel.create(dadosTarefa);
   return tarefa;
 };
 //função para atualizar totalmente uma tarefa
 const putTarefaById = async (id, dadosTarefa) => {
+  // verificando se o comodo informado existe no Mondgo
+  await validarComodo(dadosTarefa.comodoId);
   const tarefa = await TarefaModel.findByIdAndUpdate(id, dadosTarefa, {
     new: true,
     runValidators: true,
@@ -33,6 +48,12 @@ const putTarefaById = async (id, dadosTarefa) => {
 };
 //função para atualizar parcialmente uma tarefa
 const patchTarefaById = async (id, dadosAtualizados) => {
+  // verificando se o comodo existe se o mesmo for informado
+
+  if (dadosAtualizados.comodoId !== undefined) {
+    // verificando se o comodo informado existe no Mondgo
+    await validarComodo(dadosAtualizados.comodoId);
+  }
   const tarefa = await TarefaModel.findByIdAndUpdate(id, dadosAtualizados, {
     new: true,
     runValidators: true,
