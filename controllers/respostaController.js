@@ -3,6 +3,9 @@ import tarefaService from "../services/tarefaService.js";
 
 //funcao de tratamento de erro
 const tratarErro = (error, res) => {
+  if (error.status === 400) {
+    return res.status(400).json({ mensagem: error.message });
+  }
   if (error.name === "CastError") {
     return res.status(400).json({ mensagem: "ID invalido" });
   }
@@ -16,7 +19,8 @@ const tratarErro = (error, res) => {
       mensagem: "Ja existe uma resposta nessa ordem para essa tarefa",
     });
   }
-  console.log(error);
+
+  console.error(error);
   return res.status(500).json({ mensagem: "Erro interno do Servidor" });
 };
 //funcao para listar todas as respostas
