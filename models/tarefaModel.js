@@ -72,7 +72,7 @@ const tarefaSchema = new mongoose.Schema({
     enum: ["facil", "medio", "dificil"],
   },
 });
-
+tarefaSchema.index({ comodoId: 1, ordem: 1 }, { unique: true });
 const TarefaModel = mongoose.model("Tarefa", tarefaSchema);
 
 export default TarefaModel;
