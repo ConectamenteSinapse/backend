@@ -1,4 +1,15 @@
 import RespostaModel from "../models/respostaModel.js";
+import tarefaService from "../services/tarefaService.js";
+
+//Verifica se a tarefa informada existe no banco
+const validarTarefa = async (tarefaId) => {
+  const tarefa = await tarefaService.getTarefaById(tarefaId);
+  if (!tarefa) {
+    const error = new Error("Tarefa não encontrada");
+    error.status = 400;
+    throw error;
+  }
+};
 
 // Funcao para pegar todas as respostas
 const getAllRespostas = async () => {
@@ -33,12 +44,14 @@ const getRespostasByTarefaIdSemCorreta = async (tarefaId) => {
 
 //funcao para criar Resposta
 const postResposta = async (dadosResposta) => {
+  await validarTarefa(dadosResposta.tarefaId);
   const novaResposta = await RespostaModel.create(dadosResposta);
   return novaResposta;
 };
 
 // funcao para edicao completa da resposta
 const putRespostaById = async (id, dadosAtualizados) => {
+  await validarTarefa(dadosAtualizados.tarefaId);
   const resposta = await RespostaModel.findByIdAndUpdate(id, dadosAtualizados, {
     new: true,
     runValidators: true,
@@ -47,6 +60,9 @@ const putRespostaById = async (id, dadosAtualizados) => {
 };
 // funcao para edicao PARCIAL da resposta
 const patchRespostaById = async (id, dadosAtualizados) => {
+  if (dadosAtualizados.tarefaId !== undefined) {
+    await validarTarefa(dadosAtualizados.tarefaId);
+  }
   const resposta = await RespostaModel.findByIdAndUpdate(id, dadosAtualizados, {
     new: true,
     runValidators: true,
