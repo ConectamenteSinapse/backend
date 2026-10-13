@@ -9,6 +9,7 @@ import usuarioRoutes from "./routes/usuarioRoutes.js";
 import comodoRoutes from "./routes/comodoRoutes.js";
 import tarefaRoutes from "./routes/tarefaRoutes.js";
 import respostaRoutes from "./routes/respostaRoutes.js";
+import criancaRoutes from "./routes/criancaRoutes.js";
 
 //criarndo a variavel app para configurar o servidor:
 const app = express();
@@ -26,7 +27,7 @@ app.use("/usuarios", usuarioRoutes);
 app.use("/comodos", comodoRoutes);
 app.use("/tarefas", tarefaRoutes);
 app.use("/respostas", respostaRoutes);
-
+app.use("/criancas", criancaRoutes);
 //rota principal
 // Requisiçoes Get feitas para "/"
 app.get("/", (req, res) => {
