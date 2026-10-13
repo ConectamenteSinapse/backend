@@ -42,7 +42,10 @@ const postCrianca = async (dadosCrianca) => {
   if (criancaExistente) {
     throw new Error("PERFIL_CRIANCA_EXISTENTE");
   }
-  return await CriancaModel.create({ usuarioId: usuario._id });
+  return await CriancaModel.create({
+    usuarioId: usuario._id,
+    dataNascimento: dadosCrianca.dataNascimento,
+  });
 };
 
 // Atulalizar os dados de um perfil de crianca
@@ -50,7 +53,7 @@ const postCrianca = async (dadosCrianca) => {
 const putCriancaById = async (id, dadosAtualizados) => {
   validarId(id);
   const dadosPermitidos = { dataNascimento: dadosAtualizados.dataNascimento };
-  return await CriancaModel.findByIdAndUpdate(id, dadosAtualizados, {
+  return await CriancaModel.findByIdAndUpdate(id, dadosPermitidos, {
     new: true,
     runValidators: true,
   });
@@ -58,11 +61,11 @@ const putCriancaById = async (id, dadosAtualizados) => {
 const patchCriancaById = async (id, dadosAtualizados) => {
   validarId(id);
 
-  const dadosPermidos = {};
+  const dadosPermitidos = {};
   if (dadosAtualizados.dataNascimento !== undefined) {
     dadosPermitidos.dataNascimento = dadosAtualizados.dataNascimento;
   }
-  return await CriancaModel.findByIdAndUpdate(id, dadosAtualizados, {
+  return await CriancaModel.findByIdAndUpdate(id, dadosPermitidos, {
     new: true,
     runValidators: true,
   });
