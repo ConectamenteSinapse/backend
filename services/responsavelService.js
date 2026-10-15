@@ -26,7 +26,7 @@ const getResponsavelByUsuarioId = async (usuarioId) => {
 };
 
 // cadastrar perfil responsavel
-const postResposnsavel = async (dadosResponsavel) => {
+const postResponsavel = async (dadosResponsavel) => {
   validarId(dadosResponsavel?.usuarioId);
   const usuario = await UsuarioModel.findById(dadosResponsavel.usuarioId);
 
@@ -36,7 +36,15 @@ const postResposnsavel = async (dadosResponsavel) => {
   if (usuario.perfil !== "responsavel") {
     throw new Error("PERFIL_USUARIO_INVALIDO");
   }
-  const responsavelExistente = await ResponsavelModel.findOne({});
+  const responsavelExistente = await ResponsavelModel.findOne({
+    usuarioId : usuario._id
+  });
+  if(responsavelExistente){
+    throw new Error("PERFIL_RESPONSAVEL_EXISTENTE");
+  }
+  return await ResponsavelModel.create({
+    usuarioId: usuario._id
+  })
 };
 //Listar criancas vinculadas ao responsavel
 const getCriancasByResponsavelId = async (responsavelId) => {
@@ -45,7 +53,9 @@ const getCriancasByResponsavelId = async (responsavelId) => {
 };
 
 export default {
+  getResponsaveis,
   getResponsavelById,
   getResponsavelByUsuarioId,
+  postResponsavel,
   getCriancasByResponsavelId,
 };
