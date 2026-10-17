@@ -1,6 +1,22 @@
 // importando o usuarioService
 import usuarioService from "../services/usuarioService.js";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
 
+// Tratamento centralizado de erros
+const tratarErro = (error, res) => {
+  if (error.message === "SENHA_INVALIDA") {
+    return res.status(400).json({
+      mensagem: "Senha inválida",
+    });
+  }
+
+  console.error(error);
+
+  return res.status(500).json({
+    mensagem: "Erro interno do servidor",
+  });
+};
 // funcao para listar todos os usuarios
 const getAllUsuarios = async (req, res) => {
   try {
@@ -154,7 +170,56 @@ const deleteUsuarioById = async (req, res) => {
     });
   }
 };
+// realizar Login do usuario
+const loginUsuario = async (req, res) => {
+  try {
+    const { email, senha } = req.body;
+    if (
+      typeof email !== "string" ||
+      email.trim() === "" ||
+      typeof senha !== "string" ||
+      senha === ""
+    ) {
+      return res
+        .status(400)
+        .json({ mensagem: "Email e senha sao obrigatorios" });
+    }
+    const usuario = await usuarioService.getUsuarioByEmail(email);
+    if (!usuario) {
+      return res.status(401).json({ mensagem: "Email ou senha invalidos" }); //401 nao autorizado
+    }
+    const senhaValida = await bcrypt.compare(senha, usuario.senha);
+    if (!senhaValida) {
+      return res.status(401).json({ mensagem: "Senha ou usuario invalidos" });
+    }
+    // Verifia se o segredo JWT esta configurado na variavel de ambiente
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET_NAO_CONFIGURADO");
+    }
+    //Gerar o token JWT
+    const token = jwt.sign(
+      {
+        id: usuario._id.toString(),
+        perfil: usuario.perfil,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "5h" },
+    );
 
+    return res.status(200).json({
+      mensagem: "Login realizado com sucesso",
+      token,
+      usuario: {
+        id: usuario._id,
+        nome: usuario.nome,
+        email: usuario.email,
+        perfil: usuario.perfil,
+      },
+    });
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
 export default {
   getAllUsuarios,
   getUsuarioById,
@@ -162,4 +227,5 @@ export default {
   putUsuarioById,
   patchUsuarioById,
   deleteUsuarioById,
+  loginUsuario,
 };
