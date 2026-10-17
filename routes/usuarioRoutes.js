@@ -5,6 +5,8 @@ import usuarioController from "../controllers/usuarioController.js";
 //Criando a variavel para usar a função Router() qu e ajuda a separar e agrupar rotas
 const router = express.Router();
 
+//Rota de login
+router.post("/auth", usuarioController.loginUsuario);
 // Rota para listar todos os usuarios:
 router.get("/", usuarioController.getAllUsuarios);
 
