@@ -33,6 +33,11 @@ const tratarErro = (error, res) => {
   if (error.code === 11000) {
     return res.status(409).json({ mensagem: "Registro duplicado" });
   }
+  if (error.message === "CREDENCIAIS_INVALIDAS") {
+    return res.status(401).json({
+      mensagem: "E-mail ou senha inválidos",
+    });
+  }
   console.log(error);
   return res.status(500).json({ mensagem: "Erro interno do servidor" });
 };
@@ -82,19 +87,20 @@ const getResponsavelByUsuarioId = async (req, res) => {
 //cadastrar perfil responsavel
 const postResponsavel = async (req, res) => {
   try {
-    const responsavel = await responsavelService.postResponsavel(req.body);
+    const usuarioId = req.usuario.id;
+    const responsavel = await responsavelService.postResponsavel(usuarioId);
     return res.status(201).json(responsavel);
   } catch (error) {
     return tratarErro(error, res);
   }
 };
 
-// buscar Criança pelo ResponsavelId
-const getCriancasByResponsavelId = async (req, res) => {
+// listar criancas do responsavel autentificado
+const getMinhasCriancas = async (req, res) => {
   try {
-    const criancas = await responsavelService.getCriancasByResponsavelId(
-      req.params.responsavelId,
-    );
+    const usuarioId = req.usuario.id;
+
+    const criancas = await responsavelService.getMinhasCriancas(usuarioId);
     return res.status(200).json(criancas);
   } catch (error) {
     return tratarErro(error, res);
@@ -104,13 +110,32 @@ const getCriancasByResponsavelId = async (req, res) => {
 //Vincular crianca ao responsavel
 const vincularCrianca = async (req, res) => {
   try {
-    const criancaId = req.params.criancaId;
-    const responsavelId = req.body.responsavelId;
-    const crianca = await responsavelService.vincularCrianca(
-      responsavelId,
-      criancaId,
+    const usuarioId = req.usuario.id;
+    if (!req.body) {
+      return res
+        .status(400)
+        .json({ mensagem: "Body da requisição obrigatorio" });
+    }
+    const email = req.body.email;
+    const senha = req.body.senha;
+    if (
+      typeof email !== "string" ||
+      email.trim() === "" ||
+      typeof senha !== "string" ||
+      senha.trim() === ""
+    ) {
+      return res
+        .status(400)
+        .json({ mensagem: "E-mail e senha são obrigatórios" });
+    }
+
+    const resultado = await responsavelService.vincularCrianca(
+      usuarioId,
+      email,
+      senha,
     );
-    return res.status(200).json(crianca);
+
+    return res.status(200).json(resultado);
   } catch (error) {
     return tratarErro(error, res);
   }
@@ -121,6 +146,6 @@ export default {
   getResponsavelById,
   getResponsavelByUsuarioId,
   postResponsavel,
-  getCriancasByResponsavelId,
+  getMinhasCriancas,
   vincularCrianca,
 };
