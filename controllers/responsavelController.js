@@ -1,0 +1,151 @@
+import responsavelService from "../services/responsavelService.js";
+// tratar error
+const tratarErro = (error, res) => {
+  if (error.message === "ID_INVALIDO") {
+    return res.status(400).json({ mensagem: error.message });
+  }
+  if (error.message === "PERFIL_USUARIO_INVALIDO") {
+    return res.status(400).json({ mensagem: error.message });
+  }
+  if (error.message === "USUARIO_NAO_ENCONTRADO") {
+    return res.status(404).json({ mensagem: "Usuario não encontrado" });
+  }
+  if (error.message === "RESPONSAVEL_NAO_ENCONTRADO") {
+    return res.status(404).json({ mensagem: "Responsavel nao encontrado" });
+  }
+  if (error.message === "PERFIL_RESPONSAVEL_EXISTENTE") {
+    return res
+      .status(409)
+      .json({ mensagem: "Este usuario ja possui um perfil de responsavel" });
+  }
+  if (error.message === "CRIANCA_NAO_ENCONTRADA") {
+    return res.status(404).json({ mensagem: "Criança não encontrada" });
+  }
+  if (error.message === "CRIANCA_JA_VINCULADA") {
+    return res
+      .status(409)
+      .json({ mensagem: "Criança já possui responsável vinculado" });
+  }
+  if (error.name === "ValidationError" || error.name === "CastError") {
+    return res.status(400).json({ mensagem: "Dados invalidos" });
+  }
+  // duplicidadae do mongoDB
+  if (error.code === 11000) {
+    return res.status(409).json({ mensagem: "Registro duplicado" });
+  }
+  if (error.message === "CREDENCIAIS_INVALIDAS") {
+    return res.status(401).json({
+      mensagem: "E-mail ou senha inválidos",
+    });
+  }
+  console.log(error);
+  return res.status(500).json({ mensagem: "Erro interno do servidor" });
+};
+
+// Listar os Responsaveis
+const getResponsaveis = async (req, res) => {
+  try {
+    const responsaveis = await responsavelService.getResponsaveis();
+    return res.status(200).json(responsaveis);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+// Buscar resposnavel pelo ID de perfil
+
+const getResponsavelById = async (req, res) => {
+  try {
+    const responsavel = await responsavelService.getResponsavelById(
+      req.params.id,
+    );
+    if (!responsavel) {
+      return res.status(404).json({ mensagem: "Responsavel não encontrado" });
+    }
+    return res.status(200).json(responsavel);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+//Buscar responsavel pelo ID usuario
+
+const getResponsavelByUsuarioId = async (req, res) => {
+  try {
+    const responsavel = await responsavelService.getResponsavelByUsuarioId(
+      req.params.usuarioId,
+    );
+    if (!responsavel) {
+      return res.status(404).json({ mensagem: "Responsavel nao encontrado" });
+    }
+    return res.status(200).json(responsavel);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+//cadastrar perfil responsavel
+const postResponsavel = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    const responsavel = await responsavelService.postResponsavel(usuarioId);
+    return res.status(201).json(responsavel);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+// listar criancas do responsavel autentificado
+const getMinhasCriancas = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+
+    const criancas = await responsavelService.getMinhasCriancas(usuarioId);
+    return res.status(200).json(criancas);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+//Vincular crianca ao responsavel
+const vincularCrianca = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    if (!req.body) {
+      return res
+        .status(400)
+        .json({ mensagem: "Body da requisição obrigatorio" });
+    }
+    const email = req.body.email;
+    const senha = req.body.senha;
+    if (
+      typeof email !== "string" ||
+      email.trim() === "" ||
+      typeof senha !== "string" ||
+      senha.trim() === ""
+    ) {
+      return res
+        .status(400)
+        .json({ mensagem: "E-mail e senha são obrigatórios" });
+    }
+
+    const resultado = await responsavelService.vincularCrianca(
+      usuarioId,
+      email,
+      senha,
+    );
+
+    return res.status(200).json(resultado);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+export default {
+  getResponsaveis,
+  getResponsavelById,
+  getResponsavelByUsuarioId,
+  postResponsavel,
+  getMinhasCriancas,
+  vincularCrianca,
+};
