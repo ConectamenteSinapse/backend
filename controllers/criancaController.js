@@ -48,6 +48,21 @@ const getCriancas = async (req, res) => {
   }
 };
 
+// consultar o proprio perfil da crainca autenticada
+const getMeuPerfil = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    const crianca = await criancaService.getCriancaByUsuarioId(usuarioId);
+    if (!crianca) {
+      return res
+        .status(404)
+        .json({ mensagem: "Perfil de crianca nao encontrada" });
+    }
+    return res.status(200).json(crianca);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
 // Buscar uma crianca pelo id do Perfil
 
 const getCriancaById = async (req, res) => {
@@ -80,7 +95,9 @@ const getCriancaByUsuarioId = async (req, res) => {
 // cadastrar crianca
 const postCrianca = async (req, res) => {
   try {
-    const crianca = await criancaService.postCrianca(req.body);
+    // retorna o ID do usuario autentificado pelo JWT
+    const usuarioId = req.usuario.id;
+    const crianca = await criancaService.postCrianca(req.body, usuarioId);
     return res.status(201).json(crianca);
   } catch (error) {
     return tratarErro(error, res);
@@ -126,4 +143,5 @@ export default {
   postCrianca,
   putCriancaById,
   patchCriancaById,
+  getMeuPerfil,
 };

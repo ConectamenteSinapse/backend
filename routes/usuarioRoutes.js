@@ -4,6 +4,7 @@ import express from "express";
 import usuarioController from "../controllers/usuarioController.js";
 //importando o autentificar do Auth.js
 import autentificar from "../middleware/Auth.js";
+
 //Criando a variavel para usar a função Router() qu e ajuda a separar e agrupar rotas
 const router = express.Router();
 
@@ -13,21 +14,24 @@ router.post("/auth", usuarioController.loginUsuario);
 // Rota POST para cadastro de um novo usuario
 router.post("/", usuarioController.postUsuario);
 
-//Rotas protegidas
-// Rota para listar todos os usuarios:
-router.get("/", autentificar, usuarioController.getAllUsuarios);
+//Consultar a propria conta
+router.get("/meu-perfil", autentificar, usuarioController.getMeuPerfil);
 
-//rota para um usuario em especifico:
-router.get("/:id", autentificar, usuarioController.getUsuarioById);
+// //Rotas temporarailmente desativadas
+// // Rota para listar todos os usuarios:
+// router.get("/", autentificar, usuarioController.getAllUsuarios);
 
-// Rota PUT para alterar completamente um usuario
-router.put("/:id", autentificar, usuarioController.putUsuarioById);
+// //rota para um usuario em especifico:
+// router.get("/:id", autentificar, usuarioController.getUsuarioById);
 
-// Rota PATCH para atualizacao de somente um parte
-router.patch("/:id", autentificar, usuarioController.patchUsuarioById);
+// // Rota PUT para alterar completamente um usuario
+// router.put("/:id", autentificar, usuarioController.putUsuarioById);
 
-//rota delete
-router.delete("/:id", autentificar, usuarioController.deleteUsuarioById);
+// // Rota PATCH para atualizacao de somente um parte
+// router.patch("/:id", autentificar, usuarioController.patchUsuarioById);
+
+// //rota delete
+// router.delete("/:id", autentificar, usuarioController.deleteUsuarioById);
 
 //Exportando o router para ser usado em outros lugares
 export default router;

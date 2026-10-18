@@ -3,14 +3,35 @@ import usuarioService from "../services/usuarioService.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-// Tratamento centralizado de erros
+// Função auxiliar para tratar erros
 const tratarErro = (error, res) => {
-  if (error.message === "SENHA_INVALIDA") {
-    return res.status(400).json({
-      mensagem: "Senha inválida",
+  // Email já cadastrado
+  if (error.code === 11000) {
+    return res.status(409).json({
+      mensagem: "Email ja cadastrado",
     });
   }
 
+  // Erro de validação do Mongoose
+  if (error.name === "ValidationError") {
+    return res.status(400).json({
+      mensagem: "Dados de usuario invalidos",
+    });
+  }
+
+  // ID inválido do MongoDB
+  if (error.name === "CastError") {
+    return res.status(400).json({
+      mensagem: "ID invalido",
+    });
+  }
+  // Perfil não permitido no cadastro
+  if (error.message === "PERFIL_USUARIO_INVALIDO") {
+    return res.status(400).json({
+      mensagem: "Perfil de usuario invalido",
+    });
+  }
+  // Erro inesperado
   console.error(error);
 
   return res.status(500).json({
@@ -32,7 +53,18 @@ const getAllUsuarios = async (req, res) => {
     });
   }
 };
-
+const getMeuPerfil = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    const usuario = await usuarioService.getUsuarioById(usuarioId);
+    if (!usuario) {
+      return res.status(404).json({ mensagem: "Usuario nao encontrado" });
+    }
+    return res.status(200).json(usuario);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
 // funcao para listar o usuario pelo ID
 const getUsuarioById = async (req, res) => {
   try {
@@ -59,14 +91,29 @@ const getUsuarioById = async (req, res) => {
 // funcao para cadastro de um usuario
 const postUsuario = async (req, res) => {
   try {
+    if (!req.body) {
+      return res
+        .status(400)
+        .json({ mensagem: "Dados do cadastro nao informados" });
+    }
     const nome = req.body.nome;
     const email = req.body.email;
     const senha = req.body.senha;
     const perfil = req.body.perfil;
 
-    if (!nome || !email || !senha || !perfil) {
+    // Verificar se os campos obrigatórios são textos válidos
+    if (
+      typeof nome !== "string" ||
+      !nome.trim() ||
+      typeof email !== "string" ||
+      !email.trim() ||
+      typeof senha !== "string" ||
+      !senha.trim() ||
+      typeof perfil !== "string" ||
+      !perfil.trim()
+    ) {
       return res.status(400).json({
-        mensagem: "Campos obrigatorios nao preenchidos",
+        mensagem: "Campos obrigatorios invalidos ou nao preenchidos",
       });
     }
 
@@ -79,10 +126,7 @@ const postUsuario = async (req, res) => {
 
     return res.status(201).json(novoUsuario);
   } catch (error) {
-    return res.status(500).json({
-      mensagem: "Erro ao cadastrar usuario",
-      erro: error.message,
-    });
+    return tratarErro(error, res);
   }
 };
 
@@ -228,4 +272,5 @@ export default {
   patchUsuarioById,
   deleteUsuarioById,
   loginUsuario,
+  getMeuPerfil,
 };
