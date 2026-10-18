@@ -18,6 +18,10 @@ const getUsuarioByEmail = async (email) => {
 
 // funcao para cadastar um usuario
 const postUsuario = async (nome, email, senha, perfil) => {
+  // Regra de negócio: somente perfis permitidos
+  if (!["crianca", "responsavel"].includes(perfil)) {
+    throw new Error("PERFIL_USUARIO_INVALIDO");
+  }
   // gerar o hash da senha
   const senhaHash = await bcrypt.hash(senha, 12);
 

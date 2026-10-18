@@ -27,9 +27,9 @@ const getCriancaByUsuarioId = async (usuarioId) => {
 };
 
 //cadastrar perfil da crianca
-const postCrianca = async (dadosCrianca) => {
-  validarId(dadosCrianca?.usuarioId);
-  const usuario = await UsuarioModel.findById(dadosCrianca.usuarioId);
+const postCrianca = async (dadosCrianca, usuarioId) => {
+  validarId(usuarioId);
+  const usuario = await UsuarioModel.findById(usuarioId);
   if (!usuario) {
     throw new Error("USUARIO_NAO_ENCONTRADO");
   }
@@ -45,6 +45,8 @@ const postCrianca = async (dadosCrianca) => {
   return await CriancaModel.create({
     usuarioId: usuario._id,
     dataNascimento: dadosCrianca.dataNascimento,
+    responsavelId: null,
+    permissaoAtiva: false,
   });
 };
 

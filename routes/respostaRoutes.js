@@ -10,24 +10,25 @@ router.get("/", autentificar, respostaController.getAllRespostas);
 // Rota para buscar uma resposta pelo ID
 router.get("/:respostaId", autentificar, respostaController.getRespostaById);
 
-//Rota para cadastrar uma resposta
-router.post("/", autentificar, respostaController.postResposta);
+// Rotas administrativas temporariamente desativadas
+// //Rota para cadastrar uma resposta
+// router.post("/", autentificar, respostaController.postResposta);
 
-// Rota para atualizar complentamente uma resposta
-router.put("/:respostaId", autentificar, respostaController.putRespostaById);
+// // Rota para atualizar complentamente uma resposta
+// router.put("/:respostaId", autentificar, respostaController.putRespostaById);
 
-// Rota para atualizar parcialmente uma resposta
-router.patch(
-  "/:respostaId",
-  autentificar,
-  respostaController.patchRespostaById,
-);
+// // Rota para atualizar parcialmente uma resposta
+// router.patch(
+//   "/:respostaId",
+//   autentificar,
+//   respostaController.patchRespostaById,
+// );
 
-// Rota para excluir resposta
-router.delete(
-  "/:respostaId",
-  autentificar,
-  respostaController.deleteRespostaById,
-);
+// // Rota para excluir resposta
+// router.delete(
+//   "/:respostaId",
+//   autentificar,
+//   respostaController.deleteRespostaById,
+// );
 
 export default router;
