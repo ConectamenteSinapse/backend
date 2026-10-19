@@ -13,12 +13,12 @@ const validarTarefa = async (tarefaId) => {
 
 // Funcao para pegar todas as respostas
 const getAllRespostas = async () => {
-  const respostas = await RespostaModel.find();
+  const respostas = await RespostaModel.find().select("-correta");
   return respostas;
 };
 // Função para pegar resposta pelo Id
 const getRespostaById = async (id) => {
-  const resposta = await RespostaModel.findById(id);
+  const resposta = await RespostaModel.findById(id).select("-correta");
   return resposta;
 };
 
@@ -26,7 +26,9 @@ const getRespostaById = async (id) => {
 const getRespostasByTarefaId = async (tarefaId) => {
   const respostasDaTarefa = await RespostaModel.find({
     tarefaId: tarefaId,
-  }).sort({ ordem: 1 }); // ja deixa organizado as respostas de ordem crescente
+  })
+    .select("-correta")
+    .sort({ ordem: 1 }); // ja deixa organizado as respostas de ordem crescente
   return respostasDaTarefa;
 };
 

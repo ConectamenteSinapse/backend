@@ -38,6 +38,17 @@ const tratarErro = (error, res) => {
       mensagem: "E-mail ou senha inválidos",
     });
   }
+  if (error.message === "PERMISSAO_INVALIDA") {
+    return res.status(400).json({
+      mensagem: "A permissão deve ser true ou false",
+    });
+  }
+
+  if (error.message === "CRIANCA_NAO_VINCULADA") {
+    return res.status(404).json({
+      mensagem: "Criança não encontrada entre as contas vinculadas",
+    });
+  }
   console.log(error);
   return res.status(500).json({ mensagem: "Erro interno do servidor" });
 };
@@ -63,6 +74,42 @@ const getResponsavelById = async (req, res) => {
       return res.status(404).json({ mensagem: "Responsavel não encontrado" });
     }
     return res.status(200).json(responsavel);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+// Alterar a permissão de jogo de uma criança vinculada
+const alterarPermissaoCrianca = async (req, res) => {
+  try {
+    // Identificar o responsável autenticado pelo JWT
+    const usuarioId = req.usuario.id;
+
+    // Obter o ID da criança pela URL
+    const criancaId = req.params.criancaId;
+
+    // Verificar se o Body foi informado
+    if (!req.body) {
+      return res.status(400).json({
+        mensagem: "Body da requisição obrigatório",
+      });
+    }
+
+    // Obter a permissão enviada pelo responsável
+    const permissaoAtiva = req.body.permissaoAtiva;
+
+    // Chamar o Service
+    const crianca = await responsavelService.alterarPermissaoCrianca(
+      usuarioId,
+      criancaId,
+      permissaoAtiva,
+    );
+
+    // Retornar apenas a informação atualizada
+    return res.status(200).json({
+      mensagem: "Permissão atualizada com sucesso",
+      permissaoAtiva: crianca.permissaoAtiva,
+    });
   } catch (error) {
     return tratarErro(error, res);
   }
@@ -148,4 +195,5 @@ export default {
   postResponsavel,
   getMinhasCriancas,
   vincularCrianca,
+  alterarPermissaoCrianca,
 };

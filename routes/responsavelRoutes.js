@@ -27,6 +27,13 @@ router.post(
   autorizarPerfil("responsavel"),
   responsavelController.vincularCrianca,
 );
+// Alterar a permissão de jogo de uma criança vinculada
+router.patch(
+  "/minhas-criancas/:criancaId/permissao",
+  autentificar,
+  autorizarPerfil("responsavel"),
+  responsavelController.alterarPermissaoCrianca,
+);
 // rotas temporarelmente  bloquadas
 // // Listar responsáveis
 // router.get("/", responsavelController.getResponsaveis);
