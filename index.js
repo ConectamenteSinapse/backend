@@ -12,6 +12,7 @@ import respostaRoutes from "./routes/respostaRoutes.js";
 import criancaRoutes from "./routes/criancaRoutes.js";
 import responsavelRoutes from "./routes/responsavelRoutes.js";
 import historicoJogoRoutes from "./routes/historicoJogoRoutes.js";
+import progressoRoutes from "./routes/progressoRoutes.js";
 
 //criarndo a variavel app para configurar o servidor:
 const app = express();
@@ -32,6 +33,7 @@ app.use("/respostas", respostaRoutes);
 app.use("/criancas", criancaRoutes);
 app.use("/responsaveis", responsavelRoutes);
 app.use("/historico-jogo", historicoJogoRoutes);
+app.use("/criancas", progressoRoutes);
 
 //rota principal
 // Requisiçoes Get feitas para "/"
