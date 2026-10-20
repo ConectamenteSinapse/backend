@@ -1,46 +1,10 @@
-import mongoose from "mongoose";
 import HistoricoJogoModel from "../models/historicoJogoModel.js";
-import CriancaModel from "../models/criancaModel.js";
-import ResponsavelModel from "../models/responsavelModel.js";
+import { validarAcessoCrianca } from "./validarAcessoCriancaService.js";
 
 // Consultar o progresso de uma criança
 const consultarProgresso = async (criancaId, usuarioAutenticado) => {
-  // Validar o formato do identificador
-  if (!mongoose.isValidObjectId(criancaId)) {
-    throw new Error("CRIANCA_ID_INVALIDO");
-  }
-  // Verificar se a criança existe no MongoDB
-  const crianca = await CriancaModel.findOne({
-    usuarioId: criancaId,
-  });
-
-  if (!crianca) {
-    throw new Error("CRIANCA_NAO_ENCONTRADA");
-  }
-  // Verificar quem está solicitando o progresso
-  if (usuarioAutenticado.perfil === "crianca") {
-    // A criança só pode consultar seu próprio progresso
-    if (crianca.usuarioId.toString() !== usuarioAutenticado.id) {
-      throw new Error("ACESSO_NEGADO");
-    }
-  } else if (usuarioAutenticado.perfil === "responsavel") {
-    // Buscar o cadastro do responsável autenticado
-    const responsavel = await ResponsavelModel.findOne({
-      usuarioId: usuarioAutenticado.id,
-    });
-
-    // Confirmar o vínculo entre responsável e criança
-    if (
-      !responsavel ||
-      !crianca.responsavelId ||
-      crianca.responsavelId.toString() !== responsavel._id.toString()
-    ) {
-      throw new Error("ACESSO_NEGADO");
-    }
-  } else {
-    // Outros perfis não têm acesso nesta versão
-    throw new Error("ACESSO_NEGADO");
-  }
+  // Validar a existência da criança e a autorização do usuário
+  const crianca = await validarAcessoCrianca(criancaId, usuarioAutenticado);
   // Buscar todas as interações da criança no MongoDB
   const historicos = await HistoricoJogoModel.find({
     // A API recebe o usuarioId; o histórico referencia o perfil Crianca.
