@@ -4,6 +4,7 @@ import PerfilJogoModel from "../models/perfilJogoModel.js";
 import TarefaModel from "../models/tarefaModel.js";
 import RespostaModel from "../models/respostaModel.js";
 import HistoricoJogoModel from "../models/historicoJogoModel.js";
+import ComodoModel from "../models/comodoModel.js";
 
 // Verificar se todas as tarefas de uma dificuldade foram concluídas
 const verificarDificuldadeConcluida = async (
@@ -98,6 +99,43 @@ const registrarResposta = async (
   });
   if (!perfilJogo) {
     throw new Error("PERFIL_JOGO_NAO_ENCONTRADO");
+  }
+  // Buscar o cômodo da tarefa
+  const comodoAtual = await ComodoModel.findById(tarefa.comodoId);
+
+  if (!comodoAtual || !comodoAtual.ativo) {
+    throw new Error("COMODO_INDISPONIVEL");
+  }
+
+  // Verificar se existem tarefas disponíveis no cômodo
+  const quantidadeTarefas = await TarefaModel.countDocuments({
+    comodoId: comodoAtual._id,
+    ativo: true,
+  });
+
+  if (quantidadeTarefas === 0) {
+    throw new Error("COMODO_INDISPONIVEL");
+  }
+
+  // Buscar todos os cômodos ativos anteriores
+  const comodosAnteriores = await ComodoModel.find({
+    ativo: true,
+    ordem: { $lt: comodoAtual.ordem },
+  }).sort({ ordem: 1 });
+
+  // Cada cômodo anterior precisa estar concluído nas três dificuldades
+  for (const comodoAnterior of comodosAnteriores) {
+    for (const nivel of ["facil", "medio", "dificil"]) {
+      const concluido = await verificarDificuldadeConcluida(
+        perfilJogo._id,
+        comodoAnterior._id,
+        nivel,
+      );
+
+      if (!concluido) {
+        throw new Error("COMODO_BLOQUEADO");
+      }
+    }
   }
   // Verificar se a dificuldade escolhida está desbloqueada
   if (dificuldade === "medio") {

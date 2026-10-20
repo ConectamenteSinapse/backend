@@ -48,6 +48,19 @@ const tratarErro = (error, res) => {
       codigo: "DIFICULDADE_BLOQUEADA",
     });
   }
+  if (error.message === "COMODO_BLOQUEADO") {
+    return res.status(403).json({
+      mensagem: "Conclua o cômodo anterior para continuar!",
+      codigo: "COMODO_BLOQUEADO",
+    });
+  }
+
+  if (error.message === "COMODO_INDISPONIVEL") {
+    return res.status(403).json({
+      mensagem: "Cômodo indisponível no momento",
+      codigo: "COMODO_INDISPONIVEL",
+    });
+  }
   console.error(error);
   return res.status(500).json({ mensagem: "Erro interno do servidor" });
 };
