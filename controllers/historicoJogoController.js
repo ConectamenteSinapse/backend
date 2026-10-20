@@ -31,7 +31,23 @@ const tratarErro = (error, res) => {
   if (error.name === "ValidationError" || error.name === "CastError") {
     return res.status(400).json({ mensagem: "Dados inválidos" });
   }
-
+  if (error.message === "DIFICULDADE_INVALIDA") {
+    return res.status(400).json({
+      mensagem: "Dificuldade inválida",
+    });
+  }
+  if (error.message === "TAREFA_FORA_DA_ORDEM") {
+    return res.status(403).json({
+      mensagem: "Vamos tentar outra atividade primeiro!",
+      codigo: "TAREFA_FORA_DA_ORDEM",
+    });
+  }
+  if (error.message === "DIFICULDADE_BLOQUEADA") {
+    return res.status(403).json({
+      mensagem: "Conclua a dificuldade anterior para continuar!",
+      codigo: "DIFICULDADE_BLOQUEADA",
+    });
+  }
   console.error(error);
   return res.status(500).json({ mensagem: "Erro interno do servidor" });
 };
@@ -52,11 +68,19 @@ const registrarResposta = async (req, res) => {
     // Obter os dados enviados pelo frontend
     const tarefaId = req.body.tarefaId;
     const respostaEscolhidaId = req.body.respostaEscolhidaId;
+    const dificuldade = req.body.dificuldade;
 
     // Verificar se os campos foram informados
-    if (!tarefaId || !respostaEscolhidaId) {
+    if (!tarefaId || !respostaEscolhidaId || !dificuldade) {
       return res.status(400).json({
-        mensagem: "Tarefa e resposta são obrigatórias",
+        mensagem: "Tarefa, resposta e dificuldade são obrigatórias",
+      });
+    }
+    const dificuldadesValidas = ["facil", "medio", "dificil"];
+
+    if (!dificuldadesValidas.includes(dificuldade)) {
+      return res.status(400).json({
+        mensagem: "Dificuldade inválida",
       });
     }
 
@@ -65,6 +89,7 @@ const registrarResposta = async (req, res) => {
       usuarioId,
       tarefaId,
       respostaEscolhidaId,
+      dificuldade,
     );
 
     // Retornar somente os dados necessários ao jogo
@@ -72,6 +97,7 @@ const registrarResposta = async (req, res) => {
       acertou: historico.acertou,
       tentativa: historico.tentativa,
       pontuacaoGanha: historico.pontuacaoGanha,
+      dificuldade: historico.dificuldade,
     });
   } catch (error) {
     return tratarErro(error, res);

@@ -5,13 +5,55 @@ import TarefaModel from "../models/tarefaModel.js";
 import RespostaModel from "../models/respostaModel.js";
 import HistoricoJogoModel from "../models/historicoJogoModel.js";
 
+// Verificar se todas as tarefas de uma dificuldade foram concluídas
+const verificarDificuldadeConcluida = async (
+  perfilJogoId,
+  comodoId,
+  dificuldade,
+) => {
+  // Buscar todas as tarefas ativas do cômodo
+  const tarefas = await TarefaModel.find({
+    comodoId: comodoId,
+    ativo: true,
+  });
+
+  // Uma dificuldade sem tarefas não pode ser concluída
+  if (tarefas.length === 0) {
+    return false;
+  }
+
+  // Buscar os IDs das tarefas acertadas nessa dificuldade
+  const tarefasConcluidas = await HistoricoJogoModel.distinct("tarefaId", {
+    perfilJogoId: perfilJogoId,
+    comodoId: comodoId,
+    dificuldade: dificuldade,
+    acertou: true,
+  });
+
+  // Conferir se todas as tarefas possuem pelo menos um acerto
+  return tarefas.every((tarefa) => {
+    return tarefasConcluidas.some((idConcluido) => {
+      return idConcluido.toString() === tarefa._id.toString();
+    });
+  });
+};
 // Registrar a resposta escolhida pela criança
-const registrarResposta = async (usuarioId, tarefaId, respostaEscolhidaId) => {
+const registrarResposta = async (
+  usuarioId,
+  tarefaId,
+  respostaEscolhidaId,
+  dificuldade,
+) => {
   // Validar o ID do usuário autenticado
   if (!mongoose.Types.ObjectId.isValid(usuarioId)) {
     throw new Error("ID_INVALIDO");
   }
+  // Validar a dificuldade escolhida
+  const dificuldadesValidas = ["facil", "medio", "dificil"];
 
+  if (!dificuldadesValidas.includes(dificuldade)) {
+    throw new Error("DIFICULDADE_INVALIDA");
+  }
   // Buscar o perfil infantil associado ao usuário autenticado
   const crianca = await CriancaModel.findOne({
     usuarioId: usuarioId,
@@ -47,46 +89,129 @@ const registrarResposta = async (usuarioId, tarefaId, respostaEscolhidaId) => {
     _id: respostaEscolhidaId,
     tarefaId: tarefa._id,
   });
-
   if (!resposta) {
     throw new Error("RESPOSTA_INVALIDA");
   }
-  // Buscar o perfil de jogo da criança autenticada
   const perfilJogo = await PerfilJogoModel.findOne({
     criancaId: crianca._id,
     status: "ativo",
   });
-
   if (!perfilJogo) {
     throw new Error("PERFIL_JOGO_NAO_ENCONTRADO");
+  }
+  // Verificar se a dificuldade escolhida está desbloqueada
+  if (dificuldade === "medio") {
+    const facilConcluido = await verificarDificuldadeConcluida(
+      perfilJogo._id,
+      tarefa.comodoId,
+      "facil",
+    );
+
+    if (!facilConcluido) {
+      throw new Error("DIFICULDADE_BLOQUEADA");
+    }
+  }
+
+  if (dificuldade === "dificil") {
+    const medioConcluido = await verificarDificuldadeConcluida(
+      perfilJogo._id,
+      tarefa.comodoId,
+      "medio",
+    );
+
+    if (!medioConcluido) {
+      throw new Error("DIFICULDADE_BLOQUEADA");
+    }
+  }
+  // Buscar tarefas anteriores selecionada, no mesmo cômodo
+  const tarefasAnteriores = await TarefaModel.find({
+    comodoId: tarefa.comodoId,
+    ativo: true,
+    ordem: { $lt: tarefa.ordem },
+  }).sort({ ordem: 1 });
+
+  // Buscar tarefas que a criança já acertou nesta dificuldade
+  const tarefasConcluidas = await HistoricoJogoModel.distinct("tarefaId", {
+    perfilJogoId: perfilJogo._id,
+    comodoId: tarefa.comodoId,
+    dificuldade: dificuldade,
+    acertou: true,
+  });
+  // Verificar se todas as tarefas anteriores já foram concluídas
+  const anterioresConcluidas = tarefasAnteriores.every((tarefaAnterior) => {
+    return tarefasConcluidas.some((idConcluido) => {
+      return idConcluido.toString() === tarefaAnterior._id.toString();
+    });
+  });
+
+  if (!anterioresConcluidas) {
+    throw new Error("TAREFA_FORA_DA_ORDEM");
   }
   // Verificar se a alternativa escolhida está correta
   const acertou = resposta.correta;
 
-  // Contar as tentativas anteriores nesta tarefa
-  const tentativasAnteriores = await HistoricoJogoModel.countDocuments({
-    perfilJogoId: perfilJogo._id,
-    tarefaId: tarefa._id,
-  });
+  // Estrelas concedidas por dificuldade
+  const estrelasPorDificuldade = {
+    facil: 1,
+    medio: 2,
+    dificil: 3,
+  };
 
-  // Definir o número da próxima tentativa
-  const tentativa = tentativasAnteriores + 1;
+  // Calcular as estrelas da tentativa
+  const pontuacaoGanha = acertou ? estrelasPorDificuldade[dificuldade] : 0;
 
-  // Registrar a tentativa no histórico do jogo
-  const historico = await HistoricoJogoModel.create({
-    perfilJogoId: perfilJogo._id,
-    criancaId: crianca._id,
-    comodoId: tarefa.comodoId,
-    tarefaId: tarefa._id,
-    respostaEscolhidaId: resposta._id,
-    acertou: acertou,
-    tentativa: tentativa,
-    pontuacaoGanha: 0,
-    tempoGastoSegundos: 0,
-  });
+  // Iniciar uma sessão no MongoDB
+  const session = await mongoose.startSession();
 
-  // Retornar o registro criado
-  return historico;
+  try {
+    let historico;
+
+    await session.withTransaction(async () => {
+      // Contar as tentativas anteriores nesta tarefa
+      const tentativasAnteriores = await HistoricoJogoModel.countDocuments({
+        perfilJogoId: perfilJogo._id,
+        tarefaId: tarefa._id,
+        dificuldade: dificuldade,
+      }).session(session);
+
+      // Definir o número da próxima tentativa
+      const tentativa = tentativasAnteriores + 1;
+
+      // Registrar a tentativa com a pontuação calculada
+      const historicosCriados = await HistoricoJogoModel.create(
+        [
+          {
+            perfilJogoId: perfilJogo._id,
+            criancaId: crianca._id,
+            comodoId: tarefa.comodoId,
+            tarefaId: tarefa._id,
+            dificuldade: dificuldade,
+            respostaEscolhidaId: resposta._id,
+            acertou: acertou,
+            tentativa: tentativa,
+            pontuacaoGanha: pontuacaoGanha,
+            tempoGastoSegundos: 0,
+          },
+        ],
+        { session },
+      );
+
+      historico = historicosCriados[0];
+
+      // Somar as estrelas ao perfil do jogador
+      if (pontuacaoGanha > 0) {
+        await PerfilJogoModel.updateOne(
+          { _id: perfilJogo._id },
+          { $inc: { estrelasTotal: pontuacaoGanha } },
+          { session },
+        );
+      }
+    });
+
+    return historico;
+  } finally {
+    await session.endSession();
+  }
 };
 export default {
   registrarResposta,

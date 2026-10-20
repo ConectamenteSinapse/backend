@@ -69,6 +69,12 @@ const historicoJogoSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  // Dificuldade em que a criança realizou a tarefa
+  dificuldade: {
+    type: String,
+    enum: ["facil", "medio", "dificil"],
+    required: true,
+  },
 });
 
 // Utilizar a coleção já existente no MongoDB
