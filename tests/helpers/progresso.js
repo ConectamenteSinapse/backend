@@ -15,6 +15,7 @@ import Tarefa from "../../models/tarefaModel.js";
 import Resposta from "../../models/respostaModel.js";
 import criancaRoutes from "../../routes/criancaRoutes.js";
 import progressoRoutes from "../../routes/progressoRoutes.js";
+import historicoConsultaRoutes from "../../routes/historicoConsultaRoutes.js";
 import { criarCatalogo } from "./catalogo.js";
 
 export async function prepararProgresso(t) {
@@ -170,10 +171,23 @@ export async function prepararProgresso(t) {
   // Mesma ordem e mesmo prefixo do index.js, sem importar seu bootstrap.
   app.use("/criancas", criancaRoutes);
   app.use("/criancas", progressoRoutes);
+  app.use("/criancas", historicoConsultaRoutes);
   server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
   client = mongoose.connection.getClient();
   client.on("commandStarted", monitorar);
+
+  async function requisitar(id, ator, sufixo) {
+    const resposta = await fetch(
+      `http://127.0.0.1:${server.address().port}/criancas/${id}${sufixo}`,
+      {
+        headers:
+          ator === null ? {} : { Authorization: `Bearer ${tokens[ator]}` },
+        signal: AbortSignal.timeout(10000),
+      },
+    );
+    return { status: resposta.status, dados: await resposta.json() };
+  }
 
   return {
     usuarios,
@@ -181,15 +195,10 @@ export async function prepararProgresso(t) {
     tarefas,
     comandos,
     async consultar(id = usuarios[0]._id, ator = 0) {
-      const resposta = await fetch(
-        `http://127.0.0.1:${server.address().port}/criancas/${id}`,
-        {
-          headers:
-            ator === null ? {} : { Authorization: `Bearer ${tokens[ator]}` },
-          signal: AbortSignal.timeout(10000),
-        },
-      );
-      return { status: resposta.status, dados: await resposta.json() };
+      return requisitar(id, ator, "");
+    },
+    async consultarHistorico(id = usuarios[0]._id, ator = 0) {
+      return requisitar(id, ator, "/historico");
     },
     async estado() {
       const estado = {};
