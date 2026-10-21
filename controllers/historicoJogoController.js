@@ -79,14 +79,15 @@ const registrarResposta = async (req, res) => {
     }
 
     // Obter os dados enviados pelo frontend
+    const perfilJogoId = req.body.perfilJogoId;
     const tarefaId = req.body.tarefaId;
     const respostaEscolhidaId = req.body.respostaEscolhidaId;
     const dificuldade = req.body.dificuldade;
 
     // Verificar se os campos foram informados
-    if (!tarefaId || !respostaEscolhidaId || !dificuldade) {
+    if (!perfilJogoId || !tarefaId || !respostaEscolhidaId || !dificuldade) {
       return res.status(400).json({
-        mensagem: "Tarefa, resposta e dificuldade são obrigatórias",
+        mensagem: "Personagem, tarefa, resposta e dificuldade são obrigatórias",
       });
     }
     const dificuldadesValidas = ["facil", "medio", "dificil"];
@@ -100,6 +101,7 @@ const registrarResposta = async (req, res) => {
     // Registrar a tentativa pelo Service
     const historico = await historicoJogoService.registrarResposta(
       usuarioId,
+      perfilJogoId,
       tarefaId,
       respostaEscolhidaId,
       dificuldade,

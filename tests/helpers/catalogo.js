@@ -4,7 +4,7 @@ import Tarefa from "../../models/tarefaModel.js";
 import Resposta from "../../models/respostaModel.js";
 
 // Todos os documentos são novos e só existem dentro da transação do teste.
-export async function criarCatalogo(session, ids) {
+export async function criarCatalogo(session, ids, identificador = "") {
   const primeiroExistente = await Comodo.findOne()
     .sort({ ordem: 1 })
     .session(session)
@@ -22,7 +22,7 @@ export async function criarCatalogo(session, ids) {
   const comodos = nomes.map((nome, indice) => ({
     _id: new mongoose.Types.ObjectId(),
     nome,
-    descricao: "Cômodo temporário de teste",
+    descricao: `Cômodo temporário de teste ${identificador}`.trim(),
     imagemCenario: "teste.png",
     ordem: inicio + indice,
     dificuldadesDisponiveis: ["facil", "medio", "dificil"],
@@ -39,7 +39,7 @@ export async function criarCatalogo(session, ids) {
       comodoId,
       titulo: "Tarefa temporária",
       enunciado: "Escolha a alternativa correta",
-      descricao: "Dados exclusivos da transação de teste",
+      descricao: `Dados fictícios de teste ${identificador}`.trim(),
       imagemObjeto: "teste.png",
       posicao: { x: 0, y: 0, largura: 1, altura: 1 },
       ordem,
