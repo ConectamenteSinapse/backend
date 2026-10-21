@@ -14,6 +14,7 @@ import responsavelRoutes from "./routes/responsavelRoutes.js";
 import historicoJogoRoutes from "./routes/historicoJogoRoutes.js";
 import progressoRoutes from "./routes/progressoRoutes.js";
 import historicoConsultaRoutes from "./routes/historicoConsultaRoutes.js";
+import perfilJogoRoutes from "./routes/perfilJogoRoutes.js";
 
 //criarndo a variavel app para configurar o servidor:
 const app = express();
@@ -36,6 +37,7 @@ app.use("/responsaveis", responsavelRoutes);
 app.use("/historico-jogo", historicoJogoRoutes);
 app.use("/criancas", progressoRoutes);
 app.use("/criancas", historicoConsultaRoutes);
+app.use("/perfis-jogo", perfilJogoRoutes);
 
 //rota principal
 // Requisiçoes Get feitas para "/"

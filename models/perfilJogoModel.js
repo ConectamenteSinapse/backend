@@ -32,12 +32,17 @@ const perfilJogoSchema = new mongoose.Schema({
 
   status: {
     type: String,
+    enum: ["ativo", "arquivado"],
     default: "ativo",
   },
 
   criadoEm: {
     type: Date,
     default: Date.now,
+  },
+  ultimaInteracaoEm: {
+    type: Date,
+    default: null,
   },
 });
 
