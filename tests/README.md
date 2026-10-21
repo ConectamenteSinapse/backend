@@ -1,121 +1,129 @@
-# Testes do histórico de jogo
+# Testes do backend
 
-Execute na raiz do backend:
+Execute com Node.js 24 ou superior e as dependências instaladas:
 
 ```sh
 npm test
 ```
 
-Use Node.js 24 ou superior e as dependências instaladas com `npm ci`.
-O `.env` precisa conter `MONGO_URI` e `JWT_SECRET`. É necessário acesso de
-rede ao Atlas e permissão para abrir um servidor HTTP local. Não é necessário
-iniciar `npm start`, informar senha nem configurar `TEST_CHILD_TOKEN`.
+## Isolamento do MongoDB
 
-## Autenticação automática
+### Revisão sem banco
 
-O helper carrega o `.env` e assina um JWT de cinco minutos em memória,
-com os mesmos campos (`id` do usuário e `perfil`) usados pelo login.
-Esse JWT pertence a um jogador fictício temporário criado pelo próprio teste.
-O Router e os middlewares reais validam o token. O fluxo de login por email
-e senha não faz parte desta suíte.
+As tentativas de configurar/autenticar `MONGO_TEST_URI` estão suspensas por
+decisão de cronograma. Para verificar o contrato do Controller e as proteções
+de teste sem conexão, execute somente:
 
-## Dados utilizados e descarte
+```sh
+node tests/bancoCommitReal.test.js
+node tests/historicoJogoController.unit.test.js
+```
 
-A preparação confirma que existe uma criança autorizada com usuário infantil
-e perfil de jogo ativo. Depois, seleciona o menor cômodo com duas a cinco
-tarefas ativas, usando as tarefas e alternativas existentes no Atlas. Cada
-tarefa precisa de uma alternativa correta e a primeira também precisa de uma
-incorreta. A suíte falha com uma mensagem de preparação se faltarem esses dados.
+Na revisão atual: **14 aprovados, nenhuma falha; commit real ignorado por padrão**. Esses testes não abrem
+conexões. O contrato de sucesso e o erro de personagem usam Service simulado;
+o ID inválido é rejeitado pelo Service real antes de qualquer consulta.
+`npm test` mantém as suítes anteriores com banco, mas ignora commit real por
+padrão. A suíte completa não foi executada nesta revisão.
+Critérios, limitações e sugestão de PR estão em `issue72-pr.md`.
 
-O jogador temporário começa sem histórico. Sua conta, criança, perfil,
-histórico e estrelas ficam em uma única transação real no Atlas. O teste
-adapta os métodos de consulta para usar essa sessão; adapta também
-`startSession`, `withTransaction` e `endSession` para o Service compartilhar
-a transação externa sem confirmá-la ou encerrá-la. As consultas e gravações
-continuam reais, sem simular resultados ou cálculos de pontuação.
+O helper `bancoTeste.js` usa `MONGO_TEST_URI` (ou o servidor e a autenticação
+configurados em `MONGO_URI`) e **sempre substitui o banco de destino** por um
+nome aleatório `t72_<UUID>`. Ele confirma o nome e que o banco está vazio antes
+de criar as coleções. Nunca utiliza o banco principal para os testes.
 
-O encerramento restaura os métodos e aborta a transação, inclusive em caso
-de falha. Consultas fora dela confirmam que a conta, a criança, o perfil e
-o histórico temporários não foram persistidos. Nenhum documento existente
-é alterado ou excluído, e a criação automática de coleções e índices está
-desabilitada. A suíte usa uma porta local livre e executa os cenários em
-sequência porque eles compartilham a progressão do mesmo jogador.
+Os testes de **commit real** usam um helper diferente, `bancoCommitReal.js`:
+exigem exclusivamente `MONGO_TEST_URI`, sem fallback para `MONGO_URI`, e rejeitam
+URIs que não apontem para `conectamente_test`. O helper verifica tanto
+`connection.name` quanto `db.databaseName` antes de criar coleções e antes das
+gravações e da limpeza. A segunda conexão de leitura usa a mesma proteção.
 
-Essa adaptação verifica as regras do Service e as respostas HTTP, mas não
-verifica o commit, as retentativas de `withTransaction` nem a concorrência
-entre requisições. Nenhum arquivo de produção é modificado.
+O servidor deve suportar transações, e a credencial precisa permitir criar e
+usar os bancos de testes. É preferível apontar `MONGO_TEST_URI` para um ambiente
+exclusivo de testes. A credencial atual do Atlas não permite bancos adicionais.
+Não envie URIs autenticadas ou segredos em logs, mensagens ou commits.
 
-## Cenários
+As URIs devem ser configuradas localmente por variáveis de ambiente.
+Não inclua valores de conexão em arquivos versionados.
 
-- Requisição sem autenticação: HTTP 401.
-- JWT automático com dificuldade inválida: HTTP 400.
-- Médio e difícil bloqueados antes da conclusão anterior: HTTP 403.
-- Ordem obrigatória em cada uma das três dificuldades: HTTP 403.
-- Erros concedem zero estrelas e não liberam a próxima tarefa.
-- Acertos concedem uma, duas e três estrelas em fácil, médio e difícil.
-- Tentativas e total de estrelas conferidos com o banco após cada resposta.
-- Conclusão parcial mantém a próxima dificuldade bloqueada.
-- Conclusão de todas as tarefas libera a dificuldade seguinte.
+A suíte abre servidores HTTP em portas locais livres. Não é necessário executar
+`npm start` ou configurar `TEST_CHILD_TOKEN`. Os JWTs são criados automaticamente
+para usuários fictícios. O helper de jogo usa `JWT_SECRET` do ambiente; os testes
+de progresso e commit usam uma chave temporária do processo.
 
-Os 13 cenários anteriores continuam em `historicoJogo.test.js`; contando o
-teste que os agrupa, são 14 aprovações. Com as quatro tarefas atuais, esse
-arquivo realiza 27 requisições HTTP locais.
+## Cenários anteriores: 70 aprovações
 
-## Desbloqueio dos cômodos
+Os cenários continuam nos mesmos arquivos, com o helper de jogo enviando
+`perfilJogoId` no body. Todo o catálogo agora é fictício; a preparação deixou
+de depender de crianças, tarefas ou alternativas existentes no banco principal.
 
-`comodos.test.js` acrescenta 15 cenários e um teste que os agrupa. A suíte
-completa totaliza **30 aprovações**, sem falhas ou testes ignorados quando
-todos passam. Os novos cenários realizam 28 requisições HTTP locais, em
-sequência, sem testes de carga.
+- `historicoJogo.test.js`: autenticação, dificuldade inválida, ordem das tarefas,
+  desbloqueio das três dificuldades, tentativas e estrelas por acertos e erros.
+- `comodos.test.js`: progressão Quarto → Banheiro → Cozinha, bloqueios enquanto
+  houver tarefas/dificuldades pendentes, cômodos inativos e tarefas indisponíveis.
+- `progresso.test.js` e `historicoConsulta.test.js`: autenticação, autorização de
+  crianças e responsáveis, vínculos por ID, cálculos, ordenação e consultas sem
+  escrita.
+- `personagemResposta.test.js`: seleção explícita entre dois personagens ativos,
+  tentativas e estrelas independentes, vínculos do histórico e isolamento de
+  desbloqueios. Personagem alheio, inexistente ou arquivado retorna HTTP 404;
+  ID ausente ou inválido retorna HTTP 400. Rejeições preservam todos os perfis
+  e históricos fictícios.
 
-Essa suíte cria um catálogo inteiramente temporário no Atlas: Quarto,
-Banheiro e Cozinha, com duas tarefas cada; um cômodo inativo; um cômodo
-vazio; outro com apenas tarefa inativa; e uma tarefa vinculada a um ID de
-cômodo inexistente. As ordens dos cômodos temporários antecedem as ordens
-existentes, sem editar o catálogo original. Isso isola a progressão de
-cômodos existentes que o jogador de teste ainda não concluiu. As consultas
-de cômodos e a contagem de tarefas também usam a sessão da transação.
+Essas suítes compartilham uma transação externa por preparação. As consultas
+reais recebem a sessão; `startSession`, `withTransaction` e `endSession` são
+adaptados apenas nos testes para evitar commit. O encerramento restaura os
+métodos, aborta a transação e confirma que os documentos não persistiram.
+Nenhum resultado de consulta ou cálculo de pontuação é simulado.
 
-Além da conta, do perfil e do histórico, a verificação após o aborto confirma
-que nenhum cômodo, tarefa ou alternativa temporária persistiu. Nenhum
-comando de exclusão é utilizado.
+O catálogo possui seis cômodos e alternativas corretas/incorretas. O quarto,
+banheiro e cozinha têm duas tarefas cada. Também há cômodo inativo, vazio,
+com tarefa inativa e uma tarefa vinculada a cômodo inexistente. Sem tarefa
+cadastrada a API retorna 404 antes de consultar o cômodo; a contagem zero de
+atividades após encontrar uma tarefa ativa não é alcançável em estado estável.
 
-Os testes verificam:
+## Commit real e concorrência: issue #72
 
-- Quarto disponível inicialmente, com resposta aceita em HTTP 201.
-- Banheiro bloqueado em todas as dificuldades enquanto o Quarto está pendente.
-- Banheiro ainda bloqueado após concluir somente fácil, fácil e médio, ou
-  deixar a última tarefa de difícil pendente no Quarto.
-- Banheiro liberado após completar todas as tarefas do Quarto nos três níveis.
-- Cozinha bloqueada enquanto o Banheiro está pendente, incluindo conclusão
-  parcial e a última tarefa de difícil ainda não concluída.
-- Cozinha liberada após completar o Banheiro nos três níveis.
-- Cômodo inexistente ou inativo rejeitado em HTTP 403, com código
-  `COMODO_INDISPONIVEL` e mensagem `Cômodo indisponível no momento`.
-- Bloqueio de progressão em HTTP 403, com código `COMODO_BLOQUEADO` e mensagem
-  `Conclua o cômodo anterior para continuar!`.
-- Toda rejeição mantém inalteradas as estrelas e a quantidade de tentativas.
+`transacaoResposta.test.js` usa exclusivamente `conectamente_test`, sem exigir
+que o banco esteja vazio. Identifica cada execução por `issue72-<UUID>` nos
+dados fictícios e acompanha todos os IDs criados. Não substitui sessões,
+`withTransaction`, gravações ou commits.
 
-### Limitação do cenário sem tarefas
+- Confirma HTTP 201, o envio de `commitTransaction` e a persistência do histórico
+  e das estrelas por uma segunda conexão independente, sem a sessão do Service.
+- Envia duas requisições HTTP simultâneas para o mesmo personagem, tarefa e
+  dificuldade: dois acertos, dois erros e um acerto com um erro.
+- Atrasa somente a conclusão das primeiras contagens reais para provocar a
+  corrida. Um limite de 1,5 segundo evita bloquear uma implementação que já
+  serialize as transações. Os resultados das consultas permanecem reais.
+- Exige duas respostas HTTP 201, duas gravações, estrelas corretas e tentativas
+  `[1, 2]`, inclusive quando as duas respostas são erradas.
+- Remove apenas os documentos fictícios pelos IDs conhecidos, no banco isolado,
+  após verificar a persistência. Históricos são delimitados pelos IDs dos
+  personagens fictícios da execução. Não apaga bancos ou coleções, nem exige
+  que documentos de outras execuções desapareçam. Sem registros criados, não
+  executa comandos de exclusão.
 
-Não existe uma rota para iniciar um cômodo pelo seu ID. A gravação de uma
-atividade usa `POST /historico-jogo/responder`, que exige `tarefaId` e
-valida a existência e a ativação da tarefa antes de consultar o cômodo.
-Portanto, após encontrar uma tarefa ativa do cômodo, a contagem de tarefas
-ativas desse mesmo cômodo não pode ser zero em um estado estável do banco.
-O ramo `quantidadeTarefas === 0` não é alcançável nesse fluxo normal.
+Commit real exige ativação explícita no ambiente do processo e uma
+`MONGO_TEST_URI` válida apontando para `conectamente_test`. Sem ambos, o teste
+é ignorado antes de abrir conexão, mesmo que o `.env` contenha uma URI.
+Para executar deliberadamente a integração em ambiente autorizado:
 
-Sem simular resultados do banco nem mudar as regras, os testes verificam
-os comportamentos disponíveis na API:
+```sh
+RUN_COMMIT_REAL_TESTS=1 node --test tests/transacaoResposta.test.js
+```
 
-- `GET /comodos/:comodoId/tarefas` de um cômodo vazio retorna HTTP 200,
-  mensagem `Este cômodo ainda não possui tarefas cadastradas` e `tarefas: []`.
-- Uma resposta com ID de tarefa não cadastrada retorna HTTP 404 e mensagem
-  `Registro não encontrado`, sem gravar atividade.
-- Uma resposta para tarefa inativa retorna HTTP 403 e mensagem
-  `Tarefa indisponível`, antes da validação do cômodo.
+`bancoCommitReal.test.js` possui oito testes sem conexão, cobrindo ativação
+explícita, configuração obrigatória, bloqueio de destinos indevidos antes da
+conexão/criação, verificação do banco efetivo e mensagens sem credenciais.
+O Atlas ainda não validou commit/persistência; as tentativas de autenticação
+estão suspensas. O resultado anterior com MongoDB local está documentado em
+`issue72-transacoes.md`.
 
-Esses cenários não afirmam que um cômodo vazio retorna
-`COMODO_INDISPONIVEL`. A suíte verifica o bloqueio ao registrar respostas;
-a listagem de tarefas não é uma autorização para jogar. Nenhuma alteração
-em Controller, Service ou nas rotas foi feita para tornar esse ramo alcançável.
+Na implementação atual, dois erros e a combinação acerto/erro produzem `[1, 1]`.
+Esses testes de regressão ficam vermelhos até a correção da concorrência.
+Dois acertos passam porque ambos atualizam o mesmo perfil e a transação em
+conflito é repetida. Consulte `issue72-transacoes.md` para a proposta mínima.
+
+A contagem da suíte completa depende da ativação do commit real, pois seus
+subtestes só são registrados quando a integração é executada. Não confundir
+a quantidade de cenários disponíveis com uma execução completa aprovada.

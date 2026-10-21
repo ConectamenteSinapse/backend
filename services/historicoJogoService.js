@@ -41,12 +41,17 @@ const verificarDificuldadeConcluida = async (
 // Registrar a resposta escolhida pela criança
 const registrarResposta = async (
   usuarioId,
+  perfilJogoId,
   tarefaId,
   respostaEscolhidaId,
   dificuldade,
 ) => {
   // Validar o ID do usuário autenticado
   if (!mongoose.Types.ObjectId.isValid(usuarioId)) {
+    throw new Error("ID_INVALIDO");
+  }
+  // Validar o identificador do personagem selecionado
+  if (!mongoose.Types.ObjectId.isValid(perfilJogoId)) {
     throw new Error("ID_INVALIDO");
   }
   // Validar a dificuldade escolhida
@@ -93,7 +98,9 @@ const registrarResposta = async (
   if (!resposta) {
     throw new Error("RESPOSTA_INVALIDA");
   }
+  // Buscar o personagem selecionado pela criança
   const perfilJogo = await PerfilJogoModel.findOne({
+    _id: perfilJogoId,
     criancaId: crianca._id,
     status: "ativo",
   });

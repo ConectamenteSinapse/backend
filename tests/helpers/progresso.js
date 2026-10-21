@@ -17,10 +17,10 @@ import criancaRoutes from "../../routes/criancaRoutes.js";
 import progressoRoutes from "../../routes/progressoRoutes.js";
 import historicoConsultaRoutes from "../../routes/historicoConsultaRoutes.js";
 import { criarCatalogo } from "./catalogo.js";
+import { conectarBancoTeste } from "./bancoTeste.js";
 
 export async function prepararProgresso(t) {
   dotenv.config({ quiet: true });
-  assert.ok(process.env.MONGO_URI, "Configure MONGO_URI no .env");
   // Chave exclusiva deste processo de teste; não usa credenciais JWT reais.
   const segredoAnterior = process.env.JWT_SECRET;
   process.env.JWT_SECRET = randomUUID();
@@ -65,16 +65,7 @@ export async function prepararProgresso(t) {
     }
   });
 
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
-      autoIndex: false,
-      autoCreate: false,
-      monitorCommands: true,
-    });
-  } catch {
-    throw new Error("Não foi possível conectar ao Atlas configurado no .env");
-  }
+  await conectarBancoTeste({ monitorCommands: true });
   session = await mongoose.startSession();
   session.startTransaction();
 
@@ -95,7 +86,7 @@ export async function prepararProgresso(t) {
     ["crianca", "crianca", "responsavel", "responsavel"].map((perfil) => ({
       nome: "Usuário fictício de progresso",
       email: `progresso-${randomUUID()}@example.invalid`,
-      senha: "hash-ficticio-nao-utilizado-para-login",
+      senha: randomUUID(),
       perfil,
     })),
   );

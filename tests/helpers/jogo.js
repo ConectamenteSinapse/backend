@@ -16,10 +16,10 @@ import Comodo from "../../models/comodoModel.js";
 import historicoRoutes from "../../routes/historicoJogoRoutes.js";
 import comodoRoutes from "../../routes/comodoRoutes.js";
 import { criarCatalogo } from "./catalogo.js";
+import { conectarBancoTeste } from "./bancoTeste.js";
 
-export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
+export async function prepararJogo(t) {
   dotenv.config({ quiet: true });
-  assert.ok(process.env.MONGO_URI, "Configure MONGO_URI no .env");
   assert.ok(process.env.JWT_SECRET, "Configure JWT_SECRET no .env");
 
   let session;
@@ -27,7 +27,14 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
   let usuarioId;
   let criancaId;
   let perfilId;
-  const ids = { comodos: [], tarefas: [], respostas: [] };
+  const ids = {
+    comodos: [],
+    tarefas: [],
+    respostas: [],
+    usuarios: [],
+    criancas: [],
+    perfis: [],
+  };
 
   // Também encerra recursos se a preparação falhar.
   t.after(async () => {
@@ -59,6 +66,9 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
           );
         }
         for (const [model, lista] of [
+          [Usuario, ids.usuarios],
+          [Crianca, ids.criancas],
+          [Perfil, ids.perfis],
           [Comodo, ids.comodos],
           [Tarefa, ids.tarefas],
           [Resposta, ids.respostas],
@@ -69,95 +79,17 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
               0,
             );
         }
+        assert.equal(
+          await Historico.countDocuments({ perfilJogoId: { $in: ids.perfis } }),
+          0,
+        );
       } finally {
         await mongoose.disconnect();
       }
     }
   });
 
-  try {
-    await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
-      autoIndex: false,
-      autoCreate: false,
-    });
-  } catch {
-    // Erros originais de conexão podem conter a URI.
-    throw new Error("Não foi possível conectar ao Atlas configurado no .env");
-  }
-
-  let tarefas;
-  if (!catalogoTemporario) {
-    // Verifica vínculos existentes sem ler nomes, emails ou hashes de senha.
-    const [origem] = await Crianca.aggregate([
-      { $match: { permissaoAtiva: true } },
-      {
-        $lookup: {
-          from: Usuario.collection.name,
-          localField: "usuarioId",
-          foreignField: "_id",
-          as: "usuario",
-        },
-      },
-      { $match: { "usuario.perfil": "crianca" } },
-      {
-        $lookup: {
-          from: Perfil.collection.name,
-          localField: "_id",
-          foreignField: "criancaId",
-          as: "perfil",
-        },
-      },
-      { $match: { "perfil.status": "ativo" } },
-      { $project: { _id: 1 } },
-      { $limit: 1 },
-    ]);
-    assert.ok(
-      origem,
-      "É necessária uma criança existente com permissão e perfil ativo",
-    );
-
-    const tarefasAtivas = await Tarefa.find({ ativo: true })
-      .sort({ ordem: 1 })
-      .lean();
-    const grupos = Map.groupBy(tarefasAtivas, (tarefa) =>
-      String(tarefa.comodoId),
-    );
-    const candidatos = [...grupos.values()]
-      .filter((tarefas) => tarefas.length >= 2 && tarefas.length <= 5)
-      .sort((a, b) => a.length - b.length);
-    assert.ok(
-      candidatos.length,
-      "É necessário um cômodo com 2 a 5 tarefas ativas para limitar as requisições",
-    );
-    tarefas = candidatos[0];
-    assert.ok(
-      tarefas[0].ordem < tarefas.at(-1).ordem,
-      "As tarefas precisam ter ordens distintas",
-    );
-    const respostas = await Resposta.find({
-      tarefaId: { $in: tarefas.map((tarefa) => tarefa._id) },
-    }).lean();
-    for (const tarefa of tarefas) {
-      tarefa.correta = respostas.find(
-        (resposta) =>
-          String(resposta.tarefaId) === String(tarefa._id) && resposta.correta,
-      );
-      assert.ok(
-        tarefa.correta,
-        "Toda tarefa precisa de uma alternativa correta",
-      );
-    }
-    tarefas[0].incorreta = respostas.find(
-      (resposta) =>
-        String(resposta.tarefaId) === String(tarefas[0]._id) &&
-        !resposta.correta,
-    );
-    assert.ok(
-      tarefas[0].incorreta,
-      "A primeira tarefa precisa de uma alternativa incorreta",
-    );
-  }
+  await conectarBancoTeste();
 
   const senha = await bcrypt.hash(randomUUID(), 12);
   session = await mongoose.startSession();
@@ -176,11 +108,13 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
     { session },
   );
   usuarioId = usuario._id;
+  ids.usuarios.push(usuarioId);
   const [crianca] = await Crianca.create(
     [{ usuarioId, permissaoAtiva: true }],
     { session },
   );
   criancaId = crianca._id;
+  ids.criancas.push(criancaId);
   const [perfil] = await Perfil.create(
     [
       {
@@ -194,10 +128,9 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
     { session },
   );
   perfilId = perfil._id;
-  const catalogo = catalogoTemporario
-    ? await criarCatalogo(session, ids)
-    : undefined;
-  if (catalogo) tarefas = catalogo.quarto.tarefas;
+  ids.perfis.push(perfilId);
+  const catalogo = await criarCatalogo(session, ids);
+  const tarefas = catalogo.quarto.tarefas;
 
   // Somente no teste: leituras reais do Service usam a transação externa.
   // Nenhum resultado de consulta ou cálculo de pontuação é simulado.
@@ -241,6 +174,71 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
   return {
     tarefas,
     catalogo,
+    perfil,
+    crianca,
+    async criarPersonagem({
+      outraCrianca = false,
+      status = "ativo",
+      estrelasTotal = 0,
+    } = {}) {
+      let donoId = criancaId;
+      if (outraCrianca) {
+        const novoUsuarioId = new mongoose.Types.ObjectId();
+        donoId = new mongoose.Types.ObjectId();
+        ids.usuarios.push(novoUsuarioId);
+        ids.criancas.push(donoId);
+        await Usuario.create(
+          [
+            {
+              _id: novoUsuarioId,
+              nome: "Outra criança fictícia",
+              email: `teste-${randomUUID()}@example.invalid`,
+              senha,
+              perfil: "crianca",
+            },
+          ],
+          { session },
+        );
+        await Crianca.create(
+          [
+            {
+              _id: donoId,
+              usuarioId: novoUsuarioId,
+              permissaoAtiva: true,
+            },
+          ],
+          { session },
+        );
+      }
+      const novoPerfilId = new mongoose.Types.ObjectId();
+      ids.perfis.push(novoPerfilId);
+      const [personagem] = await Perfil.create(
+        [
+          {
+            _id: novoPerfilId,
+            criancaId: donoId,
+            nomeAvatar: "Personagem fictício adicional",
+            imagemAvatar: "teste.png",
+            status,
+            estrelasTotal,
+          },
+        ],
+        { session },
+      );
+      return personagem;
+    },
+    async estadoPersonagens() {
+      return {
+        perfis: await Perfil.find({ _id: { $in: ids.perfis } })
+          .sort({ _id: 1 })
+          .session(session)
+          .lean(),
+        historicos: await Historico.find({ criancaId: { $in: ids.criancas } })
+          .sort({ _id: 1 })
+          .session(session)
+          .lean(),
+      };
+    },
     async listarTarefas(comodoId) {
       const resposta = await fetch(
         `http://127.0.0.1:${server.address().port}/comodos/${comodoId}/tarefas`,
@@ -251,7 +249,13 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
       );
       return { status: resposta.status, dados: await resposta.json() };
     },
-    async responder(tarefa, dificuldade, correta = true, autenticar = true) {
+    async responder(
+      tarefa,
+      dificuldade,
+      correta = true,
+      autenticar = true,
+      campos = {},
+    ) {
       const headers = { "Content-Type": "application/json" };
       if (autenticar) headers.Authorization = `Bearer ${token}`;
       const resposta = await fetch(url, {
@@ -259,20 +263,22 @@ export async function prepararJogo(t, { catalogoTemporario = false } = {}) {
         headers,
         signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
+          perfilJogoId: String(perfilId),
           tarefaId: String(tarefa._id),
           respostaEscolhidaId: String(
             (correta ? tarefa.correta : tarefa.incorreta)._id,
           ),
           dificuldade,
+          ...campos,
         }),
       });
       return { status: resposta.status, dados: await resposta.json() };
     },
-    async verificarEstado(estrelas, historicos) {
-      const atual = await Perfil.findById(perfilId).session(session).lean();
+    async verificarEstado(estrelas, historicos, personagemId = perfilId) {
+      const atual = await Perfil.findById(personagemId).session(session).lean();
       assert.equal(atual.estrelasTotal, estrelas);
       assert.equal(
-        await Historico.countDocuments({ perfilJogoId: perfilId }),
+        await Historico.countDocuments({ perfilJogoId: personagemId }),
         historicos,
       );
     },
