@@ -7,6 +7,7 @@ import Crianca from "../models/criancaModel.js";
 const usuarioId = "111111111111111111111111";
 const bodyValido = {
   perfilJogoId: "222222222222222222222222",
+  jogoSalvoId: "555555555555555555555555",
   tarefaId: "333333333333333333333333",
   respostaEscolhidaId: "444444444444444444444444",
   dificuldade: "facil",
@@ -30,7 +31,7 @@ async function executar(body) {
   return { status: resposta.codigo, dados: resposta.dados };
 }
 
-test("Controller envia os cinco parâmetros e preserva o contrato HTTP 201", async (t) => {
+test("Controller envia os seis parâmetros e preserva o contrato HTTP 201", async (t) => {
   const chamada = t.mock.method(service, "registrarResposta", async () => ({
     acertou: true,
     tentativa: 2,
@@ -50,6 +51,7 @@ test("Controller envia os cinco parâmetros e preserva o contrato HTTP 201", asy
   assert.deepEqual(chamada.mock.calls[0].arguments, [
     usuarioId,
     bodyValido.perfilJogoId,
+    bodyValido.jogoSalvoId,
     bodyValido.tarefaId,
     bodyValido.respostaEscolhidaId,
     bodyValido.dificuldade,
@@ -64,7 +66,8 @@ test("Controller rejeita personagem ausente antes de chamar o Service: HTTP 400"
     assert.deepEqual(await executar({ ...bodyValido, perfilJogoId }), {
       status: 400,
       dados: {
-        mensagem: "Personagem, tarefa, resposta e dificuldade são obrigatórias",
+        mensagem:
+          "Personagem, jogo salvo, tarefa, resposta e dificuldade são obrigatórios",
       },
     });
   }
@@ -117,4 +120,43 @@ test("Controller rejeita body ausente antes do Service: HTTP 400", async (t) => 
     dados: { mensagem: "Body da requisição obrigatório" },
   });
   assert.equal(chamada.mock.callCount(), 0);
+});
+
+test("Controller rejeita jogoSalvoId ausente antes do Service: HTTP 400", async (t) => {
+  const chamada = t.mock.method(service, "registrarResposta", async () =>
+    assert.fail("Partida obrigatória"),
+  );
+  for (const jogoSalvoId of [undefined, null, ""]) {
+    assert.deepEqual(await executar({ ...bodyValido, jogoSalvoId }), {
+      status: 400,
+      dados: {
+        mensagem:
+          "Personagem, jogo salvo, tarefa, resposta e dificuldade são obrigatórios",
+      },
+    });
+  }
+  assert.equal(chamada.mock.callCount(), 0);
+});
+
+test("Service rejeita jogoSalvoId inválido sem consultar banco", async (t) => {
+  const consulta = t.mock.method(Crianca, "findOne", () =>
+    assert.fail("Não consultar banco"),
+  );
+  for (const jogoSalvoId of ["invalido", "123", "z".repeat(24), {}, [], 42]) {
+    assert.deepEqual(await executar({ ...bodyValido, jogoSalvoId }), {
+      status: 400,
+      dados: { mensagem: "ID inválido" },
+    });
+  }
+  assert.equal(consulta.mock.callCount(), 0);
+});
+
+test("Controller traduz partida inexistente para HTTP 404", async (t) => {
+  t.mock.method(service, "registrarResposta", async () => {
+    throw new Error("JOGO_SALVO_NAO_ENCONTRADO");
+  });
+  assert.deepEqual(await executar(bodyValido), {
+    status: 404,
+    dados: { mensagem: "Registro não encontrado" },
+  });
 });

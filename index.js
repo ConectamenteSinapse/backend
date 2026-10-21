@@ -4,7 +4,7 @@ import express from "express";
 import dotenv from "dotenv";
 //Importando a conexao com o banco
 import connectDB from "./config/db-connection.js";
-// importando o usuarioRouter.js
+// importando os Router.js
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import comodoRoutes from "./routes/comodoRoutes.js";
 import tarefaRoutes from "./routes/tarefaRoutes.js";
@@ -15,6 +15,7 @@ import historicoJogoRoutes from "./routes/historicoJogoRoutes.js";
 import progressoRoutes from "./routes/progressoRoutes.js";
 import historicoConsultaRoutes from "./routes/historicoConsultaRoutes.js";
 import perfilJogoRoutes from "./routes/perfilJogoRoutes.js";
+import jogoSalvoRoutes from "./routes/jogoSalvoRoutes.js";
 
 //criarndo a variavel app para configurar o servidor:
 const app = express();
@@ -38,6 +39,7 @@ app.use("/historico-jogo", historicoJogoRoutes);
 app.use("/criancas", progressoRoutes);
 app.use("/criancas", historicoConsultaRoutes);
 app.use("/perfis-jogo", perfilJogoRoutes);
+app.use("/jogos-salvos", jogoSalvoRoutes);
 
 //rota principal
 // Requisiçoes Get feitas para "/"

@@ -9,6 +9,7 @@ import mongoose from "mongoose";
 import Usuario from "../../models/usuarioModel.js";
 import Crianca from "../../models/criancaModel.js";
 import Perfil from "../../models/perfilJogoModel.js";
+import JogoSalvo from "../../models/jogoSalvoModel.js";
 import Tarefa from "../../models/tarefaModel.js";
 import Resposta from "../../models/respostaModel.js";
 import Historico from "../../models/historicoJogoModel.js";
@@ -34,7 +35,29 @@ export async function prepararJogo(t) {
     usuarios: [],
     criancas: [],
     perfis: [],
+    partidas: [],
   };
+
+  const partidas = new Map();
+  const estrelasPerfis = new Map();
+  async function criarPartida(personagem) {
+    const partidaId = new mongoose.Types.ObjectId();
+    ids.partidas.push(partidaId);
+    const [partida] = await JogoSalvo.create(
+      [
+        {
+          _id: partidaId,
+          perfilJogoId: personagem._id,
+          nomeJogo: "Partida de regressão",
+          estrelasTotal: personagem.estrelasTotal,
+        },
+      ],
+      { session },
+    );
+    partidas.set(String(personagem._id), partida);
+    estrelasPerfis.set(String(personagem._id), personagem.estrelasTotal);
+    return partida;
+  }
 
   // Também encerra recursos se a preparação falhar.
   t.after(async () => {
@@ -69,6 +92,7 @@ export async function prepararJogo(t) {
           [Usuario, ids.usuarios],
           [Crianca, ids.criancas],
           [Perfil, ids.perfis],
+          [JogoSalvo, ids.partidas],
           [Comodo, ids.comodos],
           [Tarefa, ids.tarefas],
           [Resposta, ids.respostas],
@@ -129,6 +153,7 @@ export async function prepararJogo(t) {
   );
   perfilId = perfil._id;
   ids.perfis.push(perfilId);
+  await criarPartida(perfil);
   const catalogo = await criarCatalogo(session, ids);
   const tarefas = catalogo.quarto.tarefas;
 
@@ -137,6 +162,7 @@ export async function prepararJogo(t) {
   for (const [model, metodos] of [
     [Crianca, ["findOne"]],
     [Perfil, ["findOne"]],
+    [JogoSalvo, ["findOne"]],
     [Tarefa, ["find", "findById", "countDocuments"]],
     [Comodo, ["find", "findById"]],
     [Resposta, ["findOne"]],
@@ -176,6 +202,7 @@ export async function prepararJogo(t) {
     catalogo,
     perfil,
     crianca,
+    partidas,
     async criarPersonagem({
       outraCrianca = false,
       status = "ativo",
@@ -225,11 +252,16 @@ export async function prepararJogo(t) {
         ],
         { session },
       );
+      await criarPartida(personagem);
       return personagem;
     },
     async estadoPersonagens() {
       return {
         perfis: await Perfil.find({ _id: { $in: ids.perfis } })
+          .sort({ _id: 1 })
+          .session(session)
+          .lean(),
+        partidas: await JogoSalvo.find({ _id: { $in: ids.partidas } })
           .sort({ _id: 1 })
           .session(session)
           .lean(),
@@ -264,6 +296,12 @@ export async function prepararJogo(t) {
         signal: AbortSignal.timeout(10000),
         body: JSON.stringify({
           perfilJogoId: String(perfilId),
+          jogoSalvoId: String(
+            (
+              partidas.get(String(campos.perfilJogoId ?? perfilId)) ??
+              partidas.get(String(perfilId))
+            )._id,
+          ),
           tarefaId: String(tarefa._id),
           respostaEscolhidaId: String(
             (correta ? tarefa.correta : tarefa.incorreta)._id,
@@ -276,7 +314,17 @@ export async function prepararJogo(t) {
     },
     async verificarEstado(estrelas, historicos, personagemId = perfilId) {
       const atual = await Perfil.findById(personagemId).session(session).lean();
-      assert.equal(atual.estrelasTotal, estrelas);
+      assert.equal(
+        atual.estrelasTotal,
+        estrelasPerfis.get(String(personagemId)),
+        "Resposta não altera estrelas do personagem",
+      );
+      const partida = await JogoSalvo.findById(
+        partidas.get(String(personagemId))._id,
+      )
+        .session(session)
+        .lean();
+      assert.equal(partida.estrelasTotal, estrelas);
       assert.equal(
         await Historico.countDocuments({ perfilJogoId: personagemId }),
         historicos,
