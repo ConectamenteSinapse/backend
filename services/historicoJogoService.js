@@ -212,6 +212,27 @@ const registrarResposta = async (
     let historico;
 
     await session.withTransaction(async () => {
+      // Confirmar e reservar o personagem ativo nesta transação
+      const perfilAtivo = await PerfilJogoModel.findOneAndUpdate(
+        {
+          _id: perfilJogo._id,
+          criancaId: crianca._id,
+          status: "ativo",
+        },
+        {
+          $inc: { estrelasTotal: pontuacaoGanha },
+          $currentDate: { ultimaInteracaoEm: true },
+        },
+        {
+          session,
+          new: true,
+          runValidators: true,
+        },
+      );
+
+      if (!perfilAtivo) {
+        throw new Error("PERFIL_JOGO_NAO_ENCONTRADO");
+      }
       // Contar as tentativas anteriores nesta tarefa
       const tentativasAnteriores = await HistoricoJogoModel.countDocuments({
         perfilJogoId: perfilJogo._id,
@@ -242,15 +263,6 @@ const registrarResposta = async (
       );
 
       historico = historicosCriados[0];
-
-      // Somar as estrelas ao perfil do jogador
-      if (pontuacaoGanha > 0) {
-        await PerfilJogoModel.updateOne(
-          { _id: perfilJogo._id },
-          { $inc: { estrelasTotal: pontuacaoGanha } },
-          { session },
-        );
-      }
     });
 
     return historico;
