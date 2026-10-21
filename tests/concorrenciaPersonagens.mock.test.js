@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import mongoose from "mongoose";
 import Crianca from "../models/criancaModel.js";
 import Perfil from "../models/perfilJogoModel.js";
+import JogoSalvo from "../models/jogoSalvoModel.js";
 import Tarefa from "../models/tarefaModel.js";
 import Resposta from "../models/respostaModel.js";
 import Historico from "../models/historicoJogoModel.js";
@@ -24,6 +25,7 @@ function preparar(t, { correta = true } = {}) {
   const usuarioId = id();
   const criancaId = id();
   const perfil = { _id: id(), criancaId, status: "ativo", estrelasTotal: 7 };
+  const partida = { _id: id(), perfilJogoId: perfil._id, estrelasTotal: 7 };
   const tarefa = { _id: id(), comodoId: id(), ativo: true, ordem: 1 };
   const resposta = { _id: id(), tarefaId: tarefa._id, correta };
   const eventos = [];
@@ -68,7 +70,6 @@ function preparar(t, { correta = true } = {}) {
       const session = opts.session;
       assert.ok(sessoes.includes(session));
       assert.deepEqual(update, {
-        $inc: { estrelasTotal: correta ? 1 : 0 },
         $currentDate: { ultimaInteracaoEm: true },
       });
       await antesReserva();
@@ -76,19 +77,51 @@ function preparar(t, { correta = true } = {}) {
       return perfil.status === "ativo" ? { ...perfil } : null;
     },
   );
-  const contar = t.mock.method(Historico, "countDocuments", () => ({
-    session: async (session) => {
-      eventos.push(["conta", session]);
-      // Contagens roteirizadas, não uma garantia de serialização do servidor.
-      return session.indice;
-    },
-  }));
+  t.mock.method(JogoSalvo, "findOne", async (filtro) => {
+    assert.equal(String(filtro._id), String(partida._id));
+    assert.equal(String(filtro.perfilJogoId), String(perfil._id));
+    return { ...partida };
+  });
+  t.mock.method(JogoSalvo, "findOneAndUpdate", async (filtro, update, opts) => {
+    assert.equal(String(filtro._id), String(partida._id));
+    assert.equal(String(filtro.perfilJogoId), String(perfil._id));
+    assert.ok(sessoes.includes(opts.session));
+    assert.equal(opts.new, true);
+    assert.equal(opts.runValidators, true);
+    assert.deepEqual(update, {
+      $inc: { estrelasTotal: correta ? 1 : 0 },
+      $set: {
+        comodoId: tarefa.comodoId,
+        tarefaId: tarefa._id,
+        dificuldade: "facil",
+      },
+      $currentDate: { atualizadoEm: true },
+    });
+    eventos.push(["partida", opts.session]);
+    return { ...partida };
+  });
+  const contar = t.mock.method(Historico, "countDocuments", (filtro) => {
+    assert.deepEqual(filtro, {
+      jogoSalvoId: partida._id,
+      tarefaId: tarefa._id,
+      dificuldade: "facil",
+    });
+    return {
+      session: async (session) => {
+        eventos.push(["conta", session]);
+        // Contagens roteirizadas, não uma garantia de serialização do servidor.
+        return session.indice;
+      },
+    };
+  });
   const criar = t.mock.method(
     Historico,
     "create",
     async (docs, { session }) => {
       eventos.push(["historico", session]);
       assert.equal(docs[0].pontuacaoGanha, correta ? 1 : 0);
+      assert.equal(String(docs[0].jogoSalvoId), String(partida._id));
+      assert.equal(String(docs[0].perfilJogoId), String(perfil._id));
       return docs;
     },
   );
@@ -116,6 +149,7 @@ function preparar(t, { correta = true } = {}) {
   });
   return {
     perfil,
+    partida,
     eventos,
     sessoes,
     reservar,
@@ -126,6 +160,7 @@ function preparar(t, { correta = true } = {}) {
       historicoService.registrarResposta(
         usuarioId,
         perfil._id,
+        partida._id,
         tarefa._id,
         resposta._id,
         "facil",
@@ -190,7 +225,15 @@ for (const correta of [true, false]) {
     const session = j.sessoes[0];
     assert.deepEqual(
       j.eventos.map(([tipo]) => tipo),
-      ["inicio", "reserva", "conta", "historico", "abort simulado", "fim"],
+      [
+        "inicio",
+        "reserva",
+        "partida",
+        "conta",
+        "historico",
+        "abort simulado",
+        "fim",
+      ],
     );
     assert.ok(j.eventos.every(([, s]) => s === session));
     assert.equal(j.criar.mock.calls[0].arguments[1].session, session);
@@ -205,7 +248,15 @@ test("MOCK: duas chamadas paralelas reservam antes de contar, usando suas própr
   for (const session of j.sessoes) {
     assert.deepEqual(
       j.eventos.filter(([, s]) => s === session).map(([tipo]) => tipo),
-      ["inicio", "reserva", "conta", "historico", "commit simulado", "fim"],
+      [
+        "inicio",
+        "reserva",
+        "partida",
+        "conta",
+        "historico",
+        "commit simulado",
+        "fim",
+      ],
     );
   }
   assert.notEqual(j.sessoes[0], j.sessoes[1]);

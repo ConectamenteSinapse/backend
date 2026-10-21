@@ -1,4 +1,7 @@
-import { consultarProgresso } from "../services/progressoService.js";
+import {
+  consultarProgresso,
+  consultarProgressoJogo,
+} from "../services/progressoService.js";
 
 // Consultar o progresso da criança
 const obterProgresso = async (req, res) => {
@@ -36,4 +39,45 @@ const obterProgresso = async (req, res) => {
   }
 };
 
-export { obterProgresso };
+// Consultar o progresso de uma partida específica
+const obterProgressoJogo = async (req, res) => {
+  try {
+    // Identificar a criança autenticada
+    const usuarioId = req.usuario.id;
+
+    // Receber o identificador da partida pela URL
+    const { id } = req.params;
+
+    // Consultar o progresso no Service
+    const progresso = await consultarProgressoJogo(usuarioId, id);
+
+    return res.status(200).json(progresso);
+  } catch (error) {
+    if (
+      error.message === "ID_INVALIDO" ||
+      error.name === "CastError" ||
+      error.name === "ValidationError"
+    ) {
+      return res.status(400).json({
+        mensagem: "Dados inválidos",
+      });
+    }
+
+    if (
+      error.message === "CRIANCA_NAO_ENCONTRADA" ||
+      error.message === "JOGO_SALVO_NAO_ENCONTRADO"
+    ) {
+      return res.status(404).json({
+        mensagem: "Registro não encontrado",
+      });
+    }
+
+    console.error("Erro ao consultar progresso da partida:", error);
+
+    return res.status(500).json({
+      mensagem: "Erro interno do servidor",
+    });
+  }
+};
+
+export { obterProgresso, obterProgressoJogo };

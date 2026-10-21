@@ -1,4 +1,7 @@
-import { consultarHistorico } from "../services/historicoConsultaService.js";
+import {
+  consultarHistorico,
+  consultarHistoricoJogo,
+} from "../services/historicoConsultaService.js";
 
 // Consultar o histórico de tentativas da criança
 const obterHistorico = async (req, res) => {
@@ -41,4 +44,41 @@ const obterHistorico = async (req, res) => {
   }
 };
 
-export { obterHistorico };
+// Consultar o histórico de uma partida específica
+const obterHistoricoJogo = async (req, res) => {
+  try {
+    const usuarioId = req.usuario.id;
+    const { id } = req.params;
+
+    const historico = await consultarHistoricoJogo(usuarioId, id);
+
+    return res.status(200).json(historico);
+  } catch (error) {
+    if (
+      error.message === "ID_INVALIDO" ||
+      error.name === "CastError" ||
+      error.name === "ValidationError"
+    ) {
+      return res.status(400).json({
+        mensagem: "Dados inválidos",
+      });
+    }
+
+    if (
+      error.message === "CRIANCA_NAO_ENCONTRADA" ||
+      error.message === "JOGO_SALVO_NAO_ENCONTRADO"
+    ) {
+      return res.status(404).json({
+        mensagem: "Registro não encontrado",
+      });
+    }
+
+    console.error("Erro ao consultar histórico da partida:", error);
+
+    return res.status(500).json({
+      mensagem: "Erro interno do servidor",
+    });
+  }
+};
+
+export { obterHistorico, obterHistoricoJogo };

@@ -8,6 +8,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Crianca from "../models/criancaModel.js";
 import Perfil from "../models/perfilJogoModel.js";
+import JogoSalvo from "../models/jogoSalvoModel.js";
 import Tarefa from "../models/tarefaModel.js";
 import Resposta from "../models/respostaModel.js";
 import perfilRoutes from "../routes/perfilJogoRoutes.js";
@@ -391,6 +392,10 @@ test("Issue #71: DELETE preserva documento e bloqueia leitura, edição e novas 
       ).status,
       404,
     );
+  const partida = new JogoSalvo({
+    perfilJogoId: id,
+    nomeJogo: "Partida do arquivado",
+  });
   const tarefaId = new mongoose.Types.ObjectId();
   const respostaId = new mongoose.Types.ObjectId();
   t.mock.method(Tarefa, "findById", async () => ({
@@ -406,6 +411,7 @@ test("Issue #71: DELETE preserva documento e bloqueia leitura, edição e novas 
   );
   const res = await j.chamar("POST", "/historico-jogo/responder", {
     perfilJogoId: id,
+    jogoSalvoId: String(partida._id),
     tarefaId,
     respostaEscolhidaId: respostaId,
     dificuldade: "facil",

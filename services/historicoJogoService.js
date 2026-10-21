@@ -5,43 +5,18 @@ import TarefaModel from "../models/tarefaModel.js";
 import RespostaModel from "../models/respostaModel.js";
 import HistoricoJogoModel from "../models/historicoJogoModel.js";
 import ComodoModel from "../models/comodoModel.js";
+import JogoSalvoModel from "../models/jogoSalvoModel.js";
+import {
+  verificarComodoDesbloqueado,
+  verificarDificuldadeDesbloqueada,
+  verificarTarefaDesbloqueada,
+} from "./validarProgressaoService.js";
 
-// Verificar se todas as tarefas de uma dificuldade foram concluídas
-const verificarDificuldadeConcluida = async (
-  perfilJogoId,
-  comodoId,
-  dificuldade,
-) => {
-  // Buscar todas as tarefas ativas do cômodo
-  const tarefas = await TarefaModel.find({
-    comodoId: comodoId,
-    ativo: true,
-  });
-
-  // Uma dificuldade sem tarefas não pode ser concluída
-  if (tarefas.length === 0) {
-    return false;
-  }
-
-  // Buscar os IDs das tarefas acertadas nessa dificuldade
-  const tarefasConcluidas = await HistoricoJogoModel.distinct("tarefaId", {
-    perfilJogoId: perfilJogoId,
-    comodoId: comodoId,
-    dificuldade: dificuldade,
-    acertou: true,
-  });
-
-  // Conferir se todas as tarefas possuem pelo menos um acerto
-  return tarefas.every((tarefa) => {
-    return tarefasConcluidas.some((idConcluido) => {
-      return idConcluido.toString() === tarefa._id.toString();
-    });
-  });
-};
 // Registrar a resposta escolhida pela criança
 const registrarResposta = async (
   usuarioId,
   perfilJogoId,
+  jogoSalvoId,
   tarefaId,
   respostaEscolhidaId,
   dificuldade,
@@ -52,6 +27,10 @@ const registrarResposta = async (
   }
   // Validar o identificador do personagem selecionado
   if (!mongoose.Types.ObjectId.isValid(perfilJogoId)) {
+    throw new Error("ID_INVALIDO");
+  }
+  // Validar o identificador da partida
+  if (!mongoose.Types.ObjectId.isValid(jogoSalvoId)) {
     throw new Error("ID_INVALIDO");
   }
   // Validar a dificuldade escolhida
@@ -107,6 +86,18 @@ const registrarResposta = async (
   if (!perfilJogo) {
     throw new Error("PERFIL_JOGO_NAO_ENCONTRADO");
   }
+
+  // Buscar a partida selecionada pela criança
+  const jogoSalvo = await JogoSalvoModel.findOne({
+    _id: jogoSalvoId,
+    perfilJogoId: perfilJogo._id,
+  });
+
+  // Verificar se a partida existe e pertence ao personagem
+  if (!jogoSalvo) {
+    throw new Error("JOGO_SALVO_NAO_ENCONTRADO");
+  }
+
   // Buscar o cômodo da tarefa
   const comodoAtual = await ComodoModel.findById(tarefa.comodoId);
 
@@ -124,74 +115,36 @@ const registrarResposta = async (
     throw new Error("COMODO_INDISPONIVEL");
   }
 
-  // Buscar todos os cômodos ativos anteriores
-  const comodosAnteriores = await ComodoModel.find({
-    ativo: true,
-    ordem: { $lt: comodoAtual.ordem },
-  }).sort({ ordem: 1 });
+  // Verificar se todos os cômodos anteriores foram concluídos
+  const comodoDesbloqueado = await verificarComodoDesbloqueado(
+    jogoSalvo._id,
+    comodoAtual,
+  );
 
-  // Cada cômodo anterior precisa estar concluído nas três dificuldades
-  for (const comodoAnterior of comodosAnteriores) {
-    for (const nivel of ["facil", "medio", "dificil"]) {
-      const concluido = await verificarDificuldadeConcluida(
-        perfilJogo._id,
-        comodoAnterior._id,
-        nivel,
-      );
-
-      if (!concluido) {
-        throw new Error("COMODO_BLOQUEADO");
-      }
-    }
+  if (!comodoDesbloqueado) {
+    throw new Error("COMODO_BLOQUEADO");
   }
-  // Verificar se a dificuldade escolhida está desbloqueada
-  if (dificuldade === "medio") {
-    const facilConcluido = await verificarDificuldadeConcluida(
-      perfilJogo._id,
-      tarefa.comodoId,
-      "facil",
-    );
+  // Verificar se a dificuldade selecionada está desbloqueada
+  const dificuldadeDesbloqueada = await verificarDificuldadeDesbloqueada(
+    jogoSalvo._id,
+    tarefa.comodoId,
+    dificuldade,
+  );
 
-    if (!facilConcluido) {
-      throw new Error("DIFICULDADE_BLOQUEADA");
-    }
+  if (!dificuldadeDesbloqueada) {
+    throw new Error("DIFICULDADE_BLOQUEADA");
   }
+  // Verificar se as tarefas anteriores foram concluídas nesta partida
+  const tarefaDesbloqueada = await verificarTarefaDesbloqueada(
+    jogoSalvo._id,
+    tarefa,
+    dificuldade,
+  );
 
-  if (dificuldade === "dificil") {
-    const medioConcluido = await verificarDificuldadeConcluida(
-      perfilJogo._id,
-      tarefa.comodoId,
-      "medio",
-    );
-
-    if (!medioConcluido) {
-      throw new Error("DIFICULDADE_BLOQUEADA");
-    }
-  }
-  // Buscar tarefas anteriores selecionada, no mesmo cômodo
-  const tarefasAnteriores = await TarefaModel.find({
-    comodoId: tarefa.comodoId,
-    ativo: true,
-    ordem: { $lt: tarefa.ordem },
-  }).sort({ ordem: 1 });
-
-  // Buscar tarefas que a criança já acertou nesta dificuldade
-  const tarefasConcluidas = await HistoricoJogoModel.distinct("tarefaId", {
-    perfilJogoId: perfilJogo._id,
-    comodoId: tarefa.comodoId,
-    dificuldade: dificuldade,
-    acertou: true,
-  });
-  // Verificar se todas as tarefas anteriores já foram concluídas
-  const anterioresConcluidas = tarefasAnteriores.every((tarefaAnterior) => {
-    return tarefasConcluidas.some((idConcluido) => {
-      return idConcluido.toString() === tarefaAnterior._id.toString();
-    });
-  });
-
-  if (!anterioresConcluidas) {
+  if (!tarefaDesbloqueada) {
     throw new Error("TAREFA_FORA_DA_ORDEM");
   }
+
   // Verificar se a alternativa escolhida está correta
   const acertou = resposta.correta;
 
@@ -220,7 +173,6 @@ const registrarResposta = async (
           status: "ativo",
         },
         {
-          $inc: { estrelasTotal: pontuacaoGanha },
           $currentDate: { ultimaInteracaoEm: true },
         },
         {
@@ -233,9 +185,41 @@ const registrarResposta = async (
       if (!perfilAtivo) {
         throw new Error("PERFIL_JOGO_NAO_ENCONTRADO");
       }
+
+      // Atualizar a pontuação da partida selecionada
+      const partidaAtualizada = await JogoSalvoModel.findOneAndUpdate(
+        {
+          _id: jogoSalvo._id,
+          perfilJogoId: perfilJogo._id,
+        },
+        {
+          $inc: {
+            estrelasTotal: pontuacaoGanha,
+          },
+          $set: {
+            comodoId: tarefa.comodoId,
+            tarefaId: tarefa._id,
+            dificuldade: dificuldade,
+          },
+          $currentDate: {
+            atualizadoEm: true,
+          },
+        },
+        {
+          session,
+          new: true,
+          runValidators: true,
+        },
+      );
+
+      // Impedir respostas para partidas excluídas
+      if (!partidaAtualizada) {
+        throw new Error("JOGO_SALVO_NAO_ENCONTRADO");
+      }
+
       // Contar as tentativas anteriores nesta tarefa
       const tentativasAnteriores = await HistoricoJogoModel.countDocuments({
-        perfilJogoId: perfilJogo._id,
+        jogoSalvoId: jogoSalvo._id,
         tarefaId: tarefa._id,
         dificuldade: dificuldade,
       }).session(session);
@@ -248,6 +232,7 @@ const registrarResposta = async (
         [
           {
             perfilJogoId: perfilJogo._id,
+            jogoSalvoId: jogoSalvo._id,
             criancaId: crianca._id,
             comodoId: tarefa.comodoId,
             tarefaId: tarefa._id,

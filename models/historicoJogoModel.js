@@ -8,7 +8,13 @@ const historicoJogoSchema = new mongoose.Schema({
     ref: "PerfilJogo",
     required: true,
   },
-
+  // Partida em que a tentativa foi realizada
+  jogoSalvoId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "JogoSalvo",
+    default: null,
+    index: true,
+  },
   // Criança que realizou a atividade
   criancaId: {
     type: mongoose.Schema.Types.ObjectId,

@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import mongoose from "mongoose";
 import Crianca from "../models/criancaModel.js";
 import Perfil from "../models/perfilJogoModel.js";
+import JogoSalvo from "../models/jogoSalvoModel.js";
 import Historico from "../models/historicoJogoModel.js";
 import Comodo from "../models/comodoModel.js";
 import Tarefa from "../models/tarefaModel.js";
@@ -121,13 +122,20 @@ async function preparar(t) {
     estrelasTotal: 7,
     status: "ativo",
   });
+  const partida = await inserir(JogoSalvo, {
+    perfilJogoId: perfil._id,
+    nomeJogo: "Concorrência",
+    estrelasTotal: 7,
+  });
   return {
     perfil,
+    partida,
     comandos,
     responder: (correta) =>
       historicoService.registrarResposta(
         crianca.usuarioId,
         perfil._id,
+        partida._id,
         tarefa._id,
         tarefa[correta ? "correta" : "incorreta"]._id,
         "facil",
@@ -140,9 +148,12 @@ async function preparar(t) {
         perfil: await leitura.db
           .collection(Perfil.collection.name)
           .findOne({ _id: perfil._id }),
+        partida: await leitura.db
+          .collection(JogoSalvo.collection.name)
+          .findOne({ _id: partida._id }),
         historicos: await leitura.db
           .collection(Historico.collection.name)
-          .find({ perfilJogoId: perfil._id })
+          .find({ jogoSalvoId: partida._id })
           .sort({ tentativa: 1 })
           .toArray(),
       };
@@ -197,6 +208,7 @@ for (const correta of [true, false]) {
       const estado = await j.estado();
       assert.equal(estado.perfil.status, "arquivado");
       assert.equal(estado.perfil.estrelasTotal, 7);
+      assert.equal(estado.partida.estrelasTotal, 7);
       assert.equal(estado.perfil.ultimaInteracaoEm, null);
       assert.equal(estado.historicos.length, 0);
     },
@@ -256,7 +268,8 @@ for (const correta of [true, false]) {
       assert.equal(registro.tentativa, 1);
       const estado = await j.estado();
       assert.equal(estado.perfil.status, "arquivado");
-      assert.equal(estado.perfil.estrelasTotal, 7 + (correta ? 1 : 0));
+      assert.equal(estado.perfil.estrelasTotal, 7);
+      assert.equal(estado.partida.estrelasTotal, 7 + (correta ? 1 : 0));
       assert.ok(estado.perfil.ultimaInteracaoEm instanceof Date);
       assert.equal(estado.historicos.length, 1);
       assert.equal(estado.historicos[0].pontuacaoGanha, correta ? 1 : 0);
@@ -361,11 +374,12 @@ for (const escolhas of [
         [1, 2],
       );
       assert.equal(
-        estado.perfil.estrelasTotal,
+        estado.partida.estrelasTotal,
         7 + escolhas.filter(Boolean).length,
       );
       assert.ok(estado.perfil.ultimaInteracaoEm instanceof Date);
       assert.equal(estado.perfil.status, "ativo");
+      assert.equal(estado.perfil.estrelasTotal, 7);
       assert.deepEqual(
         estado.historicos.map((h) => h.acertou).sort(),
         [...escolhas].sort(),

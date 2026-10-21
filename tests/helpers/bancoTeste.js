@@ -5,7 +5,18 @@ import mongoose from "mongoose";
 
 // O nome nunca é recebido do ambiente: cada preparação usa um banco novo.
 // A URI fornece apenas o servidor e a autenticação, nunca o banco de destino.
+export const opcoesTesteAtlas = {
+  skip:
+    process.env.RUN_ATLAS_TESTS !== "1" &&
+    "Atlas desativado; exige RUN_ATLAS_TESTS=1",
+};
+
 export async function conectarBancoTeste(opcoes = {}) {
+  assert.equal(
+    process.env.RUN_ATLAS_TESTS,
+    "1",
+    "Conexão Atlas exige ativação explícita",
+  );
   dotenv.config({ quiet: true });
   const uri = process.env.MONGO_TEST_URI || process.env.MONGO_URI;
   assert.ok(uri, "Configure MONGO_TEST_URI ou MONGO_URI no .env");

@@ -9,7 +9,8 @@ const tratarErro = (error, res) => {
   if (
     error.message === "TAREFA_NAO_ENCONTRADA" ||
     error.message === "CRIANCA_NAO_ENCONTRADA" ||
-    error.message === "PERFIL_JOGO_NAO_ENCONTRADO"
+    error.message === "PERFIL_JOGO_NAO_ENCONTRADO" ||
+    error.message === "JOGO_SALVO_NAO_ENCONTRADO"
   ) {
     return res.status(404).json({ mensagem: "Registro não encontrado" });
   }
@@ -61,6 +62,7 @@ const tratarErro = (error, res) => {
       codigo: "COMODO_INDISPONIVEL",
     });
   }
+
   console.error(error);
   return res.status(500).json({ mensagem: "Erro interno do servidor" });
 };
@@ -80,14 +82,22 @@ const registrarResposta = async (req, res) => {
 
     // Obter os dados enviados pelo frontend
     const perfilJogoId = req.body.perfilJogoId;
+    const jogoSalvoId = req.body.jogoSalvoId;
     const tarefaId = req.body.tarefaId;
     const respostaEscolhidaId = req.body.respostaEscolhidaId;
     const dificuldade = req.body.dificuldade;
 
     // Verificar se os campos foram informados
-    if (!perfilJogoId || !tarefaId || !respostaEscolhidaId || !dificuldade) {
+    if (
+      !perfilJogoId ||
+      !jogoSalvoId ||
+      !tarefaId ||
+      !respostaEscolhidaId ||
+      !dificuldade
+    ) {
       return res.status(400).json({
-        mensagem: "Personagem, tarefa, resposta e dificuldade são obrigatórias",
+        mensagem:
+          "Personagem, jogo salvo, tarefa, resposta e dificuldade são obrigatórios",
       });
     }
     const dificuldadesValidas = ["facil", "medio", "dificil"];
@@ -102,6 +112,7 @@ const registrarResposta = async (req, res) => {
     const historico = await historicoJogoService.registrarResposta(
       usuarioId,
       perfilJogoId,
+      jogoSalvoId,
       tarefaId,
       respostaEscolhidaId,
       dificuldade,

@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import Usuario from "../models/usuarioModel.js";
 import Crianca from "../models/criancaModel.js";
 import Perfil from "../models/perfilJogoModel.js";
+import JogoSalvo from "../models/jogoSalvoModel.js";
 import Historico from "../models/historicoJogoModel.js";
 import Comodo from "../models/comodoModel.js";
 import Tarefa from "../models/tarefaModel.js";
@@ -119,14 +120,21 @@ test(
     server = app.listen(0, "127.0.0.1");
     await once(server, "listening");
 
+    const partidas = new Map();
     async function novoPerfil() {
-      return inserir(Perfil, {
+      const perfil = await inserir(Perfil, {
         criancaId: crianca._id,
         nomeAvatar: `Personagem fictício ${execucaoId}`,
         imagemAvatar: "teste.png",
         estrelasTotal: 0,
         status: "ativo",
       });
+      const partida = await inserir(JogoSalvo, {
+        perfilJogoId: perfil._id,
+        nomeJogo: "Commit real",
+      });
+      partidas.set(String(perfil._id), partida);
+      return perfil;
     }
 
     async function responder(perfil, correta) {
@@ -142,6 +150,7 @@ test(
           signal: AbortSignal.timeout(30000),
           body: JSON.stringify({
             perfilJogoId: String(perfil._id),
+            jogoSalvoId: String(partidas.get(String(perfil._id))._id),
             tarefaId: String(tarefa._id),
             respostaEscolhidaId: String(
               tarefa[correta ? "correta" : "incorreta"]._id,
@@ -159,7 +168,7 @@ test(
       try {
         const historicos = await leitura.db
           .collection(Historico.collection.name)
-          .find({ perfilJogoId: perfil._id })
+          .find({ jogoSalvoId: partidas.get(String(perfil._id))._id })
           .sort({ tentativa: 1 })
           .toArray();
         if (!registros.has(Historico)) registros.set(Historico, []);
@@ -167,7 +176,18 @@ test(
         const atual = await leitura.db
           .collection(Perfil.collection.name)
           .findOne({ _id: perfil._id });
-        return { historicos, estrelas: atual.estrelasTotal };
+        assert.equal(
+          atual.estrelasTotal,
+          0,
+          "Estrelas do personagem devem ser preservadas",
+        );
+        const partida = await leitura.db
+          .collection(JogoSalvo.collection.name)
+          .findOne({ _id: partidas.get(String(perfil._id))._id });
+        assert.equal(String(partida.tarefaId), String(tarefa._id));
+        assert.equal(String(partida.comodoId), String(tarefa.comodoId));
+        assert.equal(partida.dificuldade, "facil");
+        return { historicos, estrelas: partida.estrelasTotal };
       } finally {
         await leitura.close();
       }
