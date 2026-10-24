@@ -5,7 +5,6 @@ import { once } from "node:events";
 import express from "express";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
-import dotenv from "dotenv";
 import Usuario from "../models/usuarioModel.js";
 import Crianca from "../models/criancaModel.js";
 import Perfil from "../models/perfilJogoModel.js";
@@ -23,8 +22,9 @@ import {
 } from "./helpers/bancoCommitReal.js";
 import { criarCatalogo } from "./helpers/catalogo.js";
 
-// Não carrega configuração nem tenta conexão no npm test normal.
-if (process.env.RUN_COMMIT_REAL_TESTS === "1") dotenv.config({ quiet: true });
+import { limparRegistrosTeste } from "./helpers/atlasSeguro.js";
+
+// Configuração fornecida exclusivamente pelo ambiente do processo.
 
 test(
   "Commit real e concorrência em banco exclusivo de testes",
@@ -44,33 +44,21 @@ test(
 
     t.after(async () => {
       try {
-        if (server) {
-          await new Promise((resolve, reject) => {
-            server.close((erro) => (erro ? reject(erro) : resolve()));
-            server.closeIdleConnections();
-          });
-        }
-        t.mock.restoreAll();
-        client?.off("commandStarted", monitorar);
-        if (conexao) {
-          confirmarBancoCommitReal(conexao);
-          // Somente IDs fictícios deste banco, sem apagar coleções.
-          const perfisCriados = registros.get(Perfil) ?? [];
-          if (perfisCriados.length) {
-            await Historico.deleteMany({
-              perfilJogoId: { $in: perfisCriados },
+        try {
+          if (server) {
+            await new Promise((resolve, reject) => {
+              server.close((erro) => (erro ? reject(erro) : resolve()));
+              server.closeIdleConnections();
             });
-            assert.equal(
-              await Historico.countDocuments({
-                perfilJogoId: { $in: perfisCriados },
-              }),
-              0,
-            );
           }
-          for (const [model, ids] of registros) {
-            if (!ids.length) continue;
-            await model.deleteMany({ _id: { $in: ids } });
-            assert.equal(await model.countDocuments({ _id: { $in: ids } }), 0);
+        } finally {
+          t.mock.restoreAll();
+          client?.off("commandStarted", monitorar);
+          if (conexao) {
+            confirmarBancoCommitReal(conexao);
+            await limparRegistrosTeste(
+              conexao, registros, Historico, registros.get(Perfil) ?? [],
+            );
           }
         }
       } finally {
@@ -81,7 +69,7 @@ test(
     });
 
     conexao = await conectarBancoCommitReal({ monitorCommands: true });
-    t.diagnostic("Banco confirmado antes das gravações: conectamente_test");
+    t.diagnostic("Banco confirmado antes das gravações: conectamente_testes");
     await prepararColecoesCommitReal(conexao);
     client = mongoose.connection.getClient();
     client.on("commandStarted", monitorar);

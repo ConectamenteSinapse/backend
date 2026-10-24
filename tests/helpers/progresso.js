@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import dotenv from "dotenv";
 import express from "express";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -17,10 +16,10 @@ import criancaRoutes from "../../routes/criancaRoutes.js";
 import progressoRoutes from "../../routes/progressoRoutes.js";
 import historicoConsultaRoutes from "../../routes/historicoConsultaRoutes.js";
 import { criarCatalogo } from "./catalogo.js";
+import { confirmarModels } from "./atlasSeguro.js";
 import { conectarBancoTeste } from "./bancoTeste.js";
 
 export async function prepararProgresso(t) {
-  dotenv.config({ quiet: true });
   // Chave exclusiva deste processo de teste; não usa credenciais JWT reais.
   const segredoAnterior = process.env.JWT_SECRET;
   process.env.JWT_SECRET = randomUUID();
@@ -55,6 +54,7 @@ export async function prepararProgresso(t) {
             await session.endSession();
           }
         }
+        if (mongoose.connection.readyState === 1) confirmarModels(mongoose.connection);
         // Sem exclusões: cada ID fictício deve desaparecer após o abort.
         for (const [model, lista] of registros) {
           assert.equal(await model.countDocuments({ _id: { $in: lista } }), 0);
@@ -66,6 +66,7 @@ export async function prepararProgresso(t) {
   });
 
   await conectarBancoTeste({ monitorCommands: true });
+  confirmarModels(mongoose.connection);
   session = await mongoose.startSession();
   session.startTransaction();
 

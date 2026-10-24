@@ -16,7 +16,7 @@ function uriFicticia(banco, protocolo = "mongodb:") {
 test("Commit real é ignorado por padrão mesmo com MONGO_TEST_URI configurada", () => {
   assert.match(
     motivoIgnorarCommitReal({
-      MONGO_TEST_URI: uriFicticia("conectamente_test"),
+      MONGO_TEST_URI: uriFicticia("conectamente_testes"),
     }),
     /desativado/,
   );
@@ -30,16 +30,18 @@ test("Commit real exige ativação explícita e URI válida do banco autorizado"
   ]) {
     assert.match(
       motivoIgnorarCommitReal({
+        RUN_ATLAS_TESTS: "1",
         RUN_COMMIT_REAL_TESTS: "1",
         MONGO_TEST_URI,
       }),
-      /exige MONGO_TEST_URI válida/,
+      /MONGO_TEST_URI/,
     );
   }
   assert.equal(
     motivoIgnorarCommitReal({
+      RUN_ATLAS_TESTS: "1",
       RUN_COMMIT_REAL_TESTS: "1",
-      MONGO_TEST_URI: uriFicticia("conectamente_test"),
+      MONGO_TEST_URI: uriFicticia("conectamente_testes"),
     }),
     false,
   );
@@ -77,21 +79,21 @@ test("Commit real rejeita produção, banco ausente ou diferente antes da conex�
     uriFicticia("conectamente"),
     uriFicticia(""),
     uriFicticia("outro_test"),
-    uriFicticia("conectamente_test_extra"),
-    "https://localhost/conectamente_test",
+    uriFicticia("conectamente_testes_extra"),
+    "https://localhost/conectamente_testes",
     "uri-invalida",
   ]) {
     assert.throws(
       () => obterUriCommitReal({ MONGO_TEST_URI: uri }),
-      /exclusivamente para conectamente_test/,
+      /exclusivamente para conectamente_testes/,
     );
   }
 });
 
-test("Commit real aceita somente URI MongoDB do banco conectamente_test", () => {
+test("Commit real aceita somente URI MongoDB do banco conectamente_testes", () => {
   for (const uri of [
-    uriFicticia("conectamente_test"),
-    uriFicticia("conectamente_test", "mongodb+srv:"),
+    uriFicticia("conectamente_testes"),
+    uriFicticia("conectamente_testes", "mongodb+srv:"),
   ])
     assert.equal(obterUriCommitReal({ MONGO_TEST_URI: uri }), uri);
 });
@@ -99,14 +101,15 @@ test("Commit real aceita somente URI MongoDB do banco conectamente_test", () => 
 test("Commit real confere o nome efetivo da conexão e do banco antes de operações", () => {
   assert.doesNotThrow(() =>
     confirmarBancoCommitReal({
-      name: "conectamente_test",
-      db: { databaseName: "conectamente_test" },
+      readyState: 1,
+      name: "conectamente_testes",
+      db: { databaseName: "conectamente_testes" },
     }),
   );
   for (const conexao of [
-    { name: "conectamente", db: { databaseName: "conectamente" } },
-    { name: "conectamente_test", db: { databaseName: "conectamente" } },
-    { name: "conectamente_test" },
+    { readyState: 1, name: "conectamente", db: { databaseName: "conectamente" } },
+    { readyState: 1, name: "conectamente_testes", db: { databaseName: "conectamente" } },
+    { readyState: 1, name: "conectamente_testes" },
   ])
     assert.throws(
       () => confirmarBancoCommitReal(conexao),
