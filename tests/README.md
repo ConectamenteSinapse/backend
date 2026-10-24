@@ -92,3 +92,42 @@ flags habilitadas como primeira validação de um ambiente.
 
 Os relatórios históricos `issue71-*.md` e `issue72-*.md` podem conter destinos,
 comandos e diagnósticos anteriores. Não substituem este contrato de segurança.
+
+
+## Issue #58 — resumo geral de desempenho
+
+O endpoint `GET /criancas/:criancaId/resumo-desempenho` recebe `Usuario._id`
+na URL e devolve `Crianca._id` em `criancaId`. Consulta os históricos da criança,
+incluindo históricos preservados após arquivar personagens ou excluir partidas.
+
+- `resumoDesempenho.issue58.test.js`: 29 testes com queries simuladas, incluindo
+  cálculos, agrupamento, acesso, dados legados e erros internos.
+- `resumoDesempenho.issue58.mongo.test.js`: 12 cenários reais de resumo completo,
+  criança sem histórico, isolamento, autenticação e autorização.
+- `resumoDesempenhoPreservacao.issue58.mongo.test.js`: 3 cenários reais de
+  arquivamento, exclusão de partida e histórico com `jogoSalvoId: null`.
+
+O helper específico reutiliza `atlasSeguro.js`, exige `RUN_ATLAS_TESTS=1` e usa
+somente `MONGO_TEST_URI` em `conectamente_testes`. Não exige as flags adicionais
+reservadas às suítes de commit transacional e concorrência. Os JWTs usam segredo
+temporário; cada fixture tem ID registrado antes de inserir. Uma segunda conexão
+independente confere documentos completos e a limpeza restrita aos IDs da execução.
+Falhas de limpeza reprovam o teste. Não importar `index.js` para executar a suíte.
+
+Após autorização explícita para integração real, selecionar uma suíte por vez:
+
+```sh
+env RUN_ATLAS_TESTS=1 RUN_COMMIT_REAL_TESTS=0 RUN_CONCORRENCIA_REAL_TESTS=0 node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/resumoDesempenho.issue58.mongo.test.js
+```
+
+```sh
+env RUN_ATLAS_TESTS=1 RUN_COMMIT_REAL_TESTS=0 RUN_CONCORRENCIA_REAL_TESTS=0 node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/resumoDesempenhoPreservacao.issue58.mongo.test.js
+```
+
+Validação final anterior à transferência para esta worktree, em 23/10/2026:
+regressão offline com **118 aprovados, 0 falhos e 31 ignorados**; integração da
+issue #58 com **15 aprovados, 0 falhos e 0 ignorados**, executada sequencialmente.
+A limpeza foi confirmada nos 15 cenários reais. Os testes reais não são
+reexecutados durante esta preparação. Consulte `issue58-resumo-desempenho.md`
+para resultados históricos, contrato e limitações. Os 89/0/16 documentados acima
+correspondem à infraestrutura isolada do PR #86, sem os arquivos da issue #58.

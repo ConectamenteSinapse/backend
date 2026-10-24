@@ -2,6 +2,7 @@ import express from "express";
 import criancaController from "../controllers/criancaController.js";
 import autentificar from "../middleware/Auth.js";
 import autorizarPerfil from "../middleware/autorizarPerfil.js";
+import { obterResumoDesempenho } from "../controllers/resumoDesempenhoController.js";
 
 const router = express.Router();
 
@@ -19,7 +20,11 @@ router.post(
   autorizarPerfil("crianca"),
   criancaController.postCrianca,
 );
-
+router.get(
+  "/:criancaId/resumo-desempenho",
+  autentificar,
+  obterResumoDesempenho,
+);
 //Rotas desatividadas temporarialmente
 //Consultar todos os perfis de Criancas- reservada para o admin futuramente
 //router.get("/", autentificar, criancaController.getCriancas);
