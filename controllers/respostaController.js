@@ -59,12 +59,6 @@ const getRespostasByTarefaId = async (req, res) => {
     }
     const respostas =
       await respostaService.getRespostasByTarefaIdSemCorreta(tarefaId);
-    if (respostas.length === 0) {
-      return res.status(200).json({
-        mensagem: "Não existem respostas cadastradas para esta tarefa",
-        respostas: [],
-      });
-    }
     return res.status(200).json(respostas);
   } catch (error) {
     return tratarErro(error, res);

@@ -22,16 +22,6 @@ const getRespostaById = async (id) => {
   return resposta;
 };
 
-//funcao que pega as respostas de uma determinada tarefaId
-const getRespostasByTarefaId = async (tarefaId) => {
-  const respostasDaTarefa = await RespostaModel.find({
-    tarefaId: tarefaId,
-  })
-    .select("-correta")
-    .sort({ ordem: 1 }); // ja deixa organizado as respostas de ordem crescente
-  return respostasDaTarefa;
-};
-
 // funcao  que pega as repostas SEM  o campo correto de uma determinada tarefaId
 const getRespostasByTarefaIdSemCorreta = async (tarefaId) => {
   // utiliza a respostas e tira o  o campo Correto aytaves da funcao mascaraCAmpoCorreto
@@ -83,7 +73,6 @@ const deleteRespostaById = async (id) => {
 export default {
   getAllRespostas,
   getRespostaById,
-  getRespostasByTarefaId,
   getRespostasByTarefaIdSemCorreta,
   postResposta,
   putRespostaById,
