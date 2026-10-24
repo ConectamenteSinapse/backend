@@ -3,8 +3,11 @@ import Comodo from "../../models/comodoModel.js";
 import Tarefa from "../../models/tarefaModel.js";
 import Resposta from "../../models/respostaModel.js";
 
-// Todos os documentos são novos e só existem dentro da transação do teste.
+import { confirmarModels } from "./atlasSeguro.js";
+
+// Documentos novos; a sessão é opcional nas suítes de commit real.
 export async function criarCatalogo(session, ids, identificador = "") {
+  confirmarModels(mongoose.connection, [Comodo, Tarefa, Resposta]);
   const primeiroExistente = await Comodo.findOne()
     .sort({ ordem: 1 })
     .session(session)

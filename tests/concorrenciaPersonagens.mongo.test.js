@@ -21,10 +21,8 @@ import {
 
 // Sem flag: não lê .env, não abre conexão e não escreve dados.
 // Reutiliza as proteções do projeto; nunca usa MONGO_URI como fallback.
-const motivo = motivoIgnorarCommitReal({
-  ...process.env,
-  RUN_COMMIT_REAL_TESTS: process.env.RUN_CONCORRENCIA_REAL_TESTS,
-});
+import { limparRegistrosTeste } from "./helpers/atlasSeguro.js";
+const motivo = motivoIgnorarCommitReal(process.env, "RUN_CONCORRENCIA_REAL_TESTS");
 const opcoes = {
   skip:
     motivo &&
@@ -69,19 +67,7 @@ async function preparar(t) {
       if (conexao) {
         conexao.getClient().off("commandStarted", monitorar);
         confirmarBancoCommitReal(conexao);
-        const perfis = registros.get(Perfil) ?? [];
-        if (perfis.length) {
-          await Historico.deleteMany({ perfilJogoId: { $in: perfis } });
-          assert.equal(
-            await Historico.countDocuments({ perfilJogoId: { $in: perfis } }),
-            0,
-          );
-        }
-        for (const [model, lista] of registros) {
-          if (!lista.length) continue;
-          await model.deleteMany({ _id: { $in: lista } });
-          assert.equal(await model.countDocuments({ _id: { $in: lista } }), 0);
-        }
+        await limparRegistrosTeste(conexao, registros, Historico, registros.get(Perfil) ?? []);
       }
     } finally {
       try {
@@ -91,10 +77,10 @@ async function preparar(t) {
       }
     }
   });
-  conexao = await conectarBancoCommitReal({ monitorCommands: true });
+  conexao = await conectarBancoCommitReal({ monitorCommands: true, permissao: "RUN_CONCORRENCIA_REAL_TESTS" });
   await prepararColecoesCommitReal(conexao);
   conexao.getClient().on("commandStarted", monitorar);
-  leitura = await conectarBancoCommitReal({ leitura: true });
+  leitura = await conectarBancoCommitReal({ leitura: true, permissao: "RUN_CONCORRENCIA_REAL_TESTS" });
   async function inserir(model, dados) {
     confirmarBancoCommitReal(conexao);
     const _id = new mongoose.Types.ObjectId();

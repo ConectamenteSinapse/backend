@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import bcrypt from "bcrypt";
-import dotenv from "dotenv";
 import express from "express";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -17,11 +16,16 @@ import Comodo from "../../models/comodoModel.js";
 import historicoRoutes from "../../routes/historicoJogoRoutes.js";
 import comodoRoutes from "../../routes/comodoRoutes.js";
 import { criarCatalogo } from "./catalogo.js";
+import { confirmarModels } from "./atlasSeguro.js";
 import { conectarBancoTeste } from "./bancoTeste.js";
 
 export async function prepararJogo(t) {
-  dotenv.config({ quiet: true });
-  assert.ok(process.env.JWT_SECRET, "Configure JWT_SECRET no .env");
+  const segredoAnterior = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = randomUUID();
+  t.after(() => {
+    if (segredoAnterior === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = segredoAnterior;
+  });
 
   let session;
   let server;
@@ -78,6 +82,7 @@ export async function prepararJogo(t) {
             await session.endSession();
           }
         }
+        if (mongoose.connection.readyState === 1) confirmarModels(mongoose.connection);
         // Fora da transação, confirma que nada foi persistido.
         if (perfilId) {
           assert.equal(await Usuario.countDocuments({ _id: usuarioId }), 0);
@@ -116,6 +121,7 @@ export async function prepararJogo(t) {
   await conectarBancoTeste();
 
   const senha = await bcrypt.hash(randomUUID(), 12);
+  confirmarModels(mongoose.connection);
   session = await mongoose.startSession();
   session.startTransaction();
 

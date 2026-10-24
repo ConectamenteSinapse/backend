@@ -1,129 +1,94 @@
 # Testes do backend
 
-Execute com Node.js 24 ou superior e as dependências instaladas:
+Use Node.js 24 ou superior e as dependências do projeto instaladas.
+
+## Regressão sem Atlas
+
+Execute com todas as flags de integração desativadas, sem carregar `.env`:
 
 ```sh
-npm test
+env RUN_ATLAS_TESTS=0 RUN_COMMIT_REAL_TESTS=0 RUN_CONCORRENCIA_REAL_TESTS=0 node --test --test-concurrency=1 --test-reporter=tap
 ```
 
-## Isolamento do MongoDB
+Validação desta infraestrutura em 23/10/2026: **89 aprovados, 0 falhos e
+16 ignorados**, em Node.js 24.21.0. Nenhuma integração real foi executada nesta
+preparação. A tentativa no sandbox falhou em dois arquivos de testes HTTP;
+a repetição autorizada fora dele passou, sem alterar expectativas dos testes.
 
-### Revisão sem banco
+Os testes unitários, de proteção e HTTP com mocks não acessam MongoDB real.
+Os testes HTTP abrem servidores locais em portas livres. As suítes reais ficam
+ignoradas. `atlasSeguro.test.js` substitui os pontos de entrada do Mongoose;
+seus cenários de ativação usam ambiente fictício, sem sockets MongoDB.
 
-As tentativas de configurar/autenticar `MONGO_TEST_URI` estão suspensas por
-decisão de cronograma. Para verificar o contrato do Controller e as proteções
-de teste sem conexão, execute somente:
+## Contrato de segurança do Atlas
+
+Toda conexão de integração passa por `helpers/atlasSeguro.js` e usa somente
+`MONGO_TEST_URI`, com caminho exatamente `/conectamente_testes`. Não há fallback
+para `MONGO_URI`, banco aleatório ou carregamento automático de `.env` nos helpers.
+Não incluir credenciais em comandos, logs ou arquivos versionados.
+
+- `RUN_ATLAS_TESTS=1`: autorização central, verificada dentro das funções de conexão.
+- `RUN_COMMIT_REAL_TESTS=1`: autorização adicional para `transacaoResposta.test.js`.
+- `RUN_CONCORRENCIA_REAL_TESTS=1`: autorização adicional para `concorrenciaPersonagens.mongo.test.js`.
+
+As flags adicionais não substituem a central. URI ausente/inválida ou flag
+ausente ignora a suíte; chamada direta ao helper é bloqueada antes do driver.
+Não são aceitos fragmentos de URI, opção `dbName` na URI ou opções extras de
+conexão capazes de substituir o destino autorizado.
+
+O helper fixa `dbName`, desativa `autoCreate`/`autoIndex` e confere estado,
+`connection.name`, `db.databaseName` e vínculo dos Models/coleções antes das
+operações. Conexão primária preexistente é recusada. Uma conexão independente
+de leitura exige primária já validada e também tem seu banco confirmado.
+Falhas de conexão/validação fecham a conexão e retornam erro sanitizado.
+Os helpers não importam `index.js`; JWTs usam segredos fictícios temporários.
+
+## Preparação e limpeza
+
+A preparação valida os Models antes de criar coleções e índices declarados.
+`createIndexes()` é aditivo; não usa `syncIndexes()`. Incompatibilidades de
+índice ou duplicatas devem interromper a preparação, sem apagar dados/índices.
+Não há exclusão de banco ou coleções, nem limpeza geral de documentos.
+
+`helpers/jogo.js` e `helpers/progresso.js` inserem fixtures em transação externa,
+abortam ao terminar e conferem ausência dos IDs fora da transação. No helper
+de jogo, funções de sessão são adaptadas para impedir commit; esses cenários
+não comprovam commit do Service real. Coleções/índices ficam fora do abort.
+
+Commit e concorrência mantêm transações reais do Service e consultam resultados
+por conexão independente. A limpeza centralizada:
+
+- Registra IDs antes das inserções, inclusive em preparação parcial.
+- Exclui por `_id: { $in: IDs }`; históricos gerados pelo Service são delimitados
+  pelos perfis fictícios exclusivos da execução.
+- Valida todos os Models e IDs antes da primeira exclusão; listas vazias não excluem.
+- Continua após falhas individuais e denuncia resíduos por erro agregado sanitizado.
+- Confere ausência dos documentos; as conexões são encerradas em `finally`.
+
+## Execução real deliberada
+
+Antes de executar, preparar usuário exclusivo limitado a `conectamente_testes`,
+acesso de rede do executor e suporte a transações. Confirmar permissões de
+criação de coleções/índices e operações nesse banco, sem usar bancos da equipe.
+
+Executar uma suíte por processo, sem outra execução usando o banco. O catálogo
+fictício consulta a ordenação existente, portanto execuções sobrepostas podem
+interferir entre si. Após interrupção forçada, revisar possíveis resíduos por
+IDs conhecidos; nunca esvaziar banco ou coleções.
+
+O suporte nativo do Node.js disponibiliza `.env` ao processo. Somente em ambiente
+autorizado, selecionar explicitamente um dos arquivos abaixo:
 
 ```sh
-node tests/bancoCommitReal.test.js
-node tests/historicoJogoController.unit.test.js
+env RUN_ATLAS_TESTS=1 RUN_COMMIT_REAL_TESTS=1 RUN_CONCORRENCIA_REAL_TESTS=0 node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/transacaoResposta.test.js
 ```
-
-Na revisão atual: **14 aprovados, nenhuma falha; commit real ignorado por padrão**. Esses testes não abrem
-conexões. O contrato de sucesso e o erro de personagem usam Service simulado;
-o ID inválido é rejeitado pelo Service real antes de qualquer consulta.
-`npm test` mantém as suítes anteriores com banco, mas ignora commit real por
-padrão. A suíte completa não foi executada nesta revisão.
-Critérios, limitações e sugestão de PR estão em `issue72-pr.md`.
-
-O helper `bancoTeste.js` usa `MONGO_TEST_URI` (ou o servidor e a autenticação
-configurados em `MONGO_URI`) e **sempre substitui o banco de destino** por um
-nome aleatório `t72_<UUID>`. Ele confirma o nome e que o banco está vazio antes
-de criar as coleções. Nunca utiliza o banco principal para os testes.
-
-Os testes de **commit real** usam um helper diferente, `bancoCommitReal.js`:
-exigem exclusivamente `MONGO_TEST_URI`, sem fallback para `MONGO_URI`, e rejeitam
-URIs que não apontem para `conectamente_test`. O helper verifica tanto
-`connection.name` quanto `db.databaseName` antes de criar coleções e antes das
-gravações e da limpeza. A segunda conexão de leitura usa a mesma proteção.
-
-O servidor deve suportar transações, e a credencial precisa permitir criar e
-usar os bancos de testes. É preferível apontar `MONGO_TEST_URI` para um ambiente
-exclusivo de testes. A credencial atual do Atlas não permite bancos adicionais.
-Não envie URIs autenticadas ou segredos em logs, mensagens ou commits.
-
-As URIs devem ser configuradas localmente por variáveis de ambiente.
-Não inclua valores de conexão em arquivos versionados.
-
-A suíte abre servidores HTTP em portas locais livres. Não é necessário executar
-`npm start` ou configurar `TEST_CHILD_TOKEN`. Os JWTs são criados automaticamente
-para usuários fictícios. O helper de jogo usa `JWT_SECRET` do ambiente; os testes
-de progresso e commit usam uma chave temporária do processo.
-
-## Cenários anteriores: 70 aprovações
-
-Os cenários continuam nos mesmos arquivos, com o helper de jogo enviando
-`perfilJogoId` no body. Todo o catálogo agora é fictício; a preparação deixou
-de depender de crianças, tarefas ou alternativas existentes no banco principal.
-
-- `historicoJogo.test.js`: autenticação, dificuldade inválida, ordem das tarefas,
-  desbloqueio das três dificuldades, tentativas e estrelas por acertos e erros.
-- `comodos.test.js`: progressão Quarto → Banheiro → Cozinha, bloqueios enquanto
-  houver tarefas/dificuldades pendentes, cômodos inativos e tarefas indisponíveis.
-- `progresso.test.js` e `historicoConsulta.test.js`: autenticação, autorização de
-  crianças e responsáveis, vínculos por ID, cálculos, ordenação e consultas sem
-  escrita.
-- `personagemResposta.test.js`: seleção explícita entre dois personagens ativos,
-  tentativas e estrelas independentes, vínculos do histórico e isolamento de
-  desbloqueios. Personagem alheio, inexistente ou arquivado retorna HTTP 404;
-  ID ausente ou inválido retorna HTTP 400. Rejeições preservam todos os perfis
-  e históricos fictícios.
-
-Essas suítes compartilham uma transação externa por preparação. As consultas
-reais recebem a sessão; `startSession`, `withTransaction` e `endSession` são
-adaptados apenas nos testes para evitar commit. O encerramento restaura os
-métodos, aborta a transação e confirma que os documentos não persistiram.
-Nenhum resultado de consulta ou cálculo de pontuação é simulado.
-
-O catálogo possui seis cômodos e alternativas corretas/incorretas. O quarto,
-banheiro e cozinha têm duas tarefas cada. Também há cômodo inativo, vazio,
-com tarefa inativa e uma tarefa vinculada a cômodo inexistente. Sem tarefa
-cadastrada a API retorna 404 antes de consultar o cômodo; a contagem zero de
-atividades após encontrar uma tarefa ativa não é alcançável em estado estável.
-
-## Commit real e concorrência: issue #72
-
-`transacaoResposta.test.js` usa exclusivamente `conectamente_test`, sem exigir
-que o banco esteja vazio. Identifica cada execução por `issue72-<UUID>` nos
-dados fictícios e acompanha todos os IDs criados. Não substitui sessões,
-`withTransaction`, gravações ou commits.
-
-- Confirma HTTP 201, o envio de `commitTransaction` e a persistência do histórico
-  e das estrelas por uma segunda conexão independente, sem a sessão do Service.
-- Envia duas requisições HTTP simultâneas para o mesmo personagem, tarefa e
-  dificuldade: dois acertos, dois erros e um acerto com um erro.
-- Atrasa somente a conclusão das primeiras contagens reais para provocar a
-  corrida. Um limite de 1,5 segundo evita bloquear uma implementação que já
-  serialize as transações. Os resultados das consultas permanecem reais.
-- Exige duas respostas HTTP 201, duas gravações, estrelas corretas e tentativas
-  `[1, 2]`, inclusive quando as duas respostas são erradas.
-- Remove apenas os documentos fictícios pelos IDs conhecidos, no banco isolado,
-  após verificar a persistência. Históricos são delimitados pelos IDs dos
-  personagens fictícios da execução. Não apaga bancos ou coleções, nem exige
-  que documentos de outras execuções desapareçam. Sem registros criados, não
-  executa comandos de exclusão.
-
-Commit real exige ativação explícita no ambiente do processo e uma
-`MONGO_TEST_URI` válida apontando para `conectamente_test`. Sem ambos, o teste
-é ignorado antes de abrir conexão, mesmo que o `.env` contenha uma URI.
-Para executar deliberadamente a integração em ambiente autorizado:
 
 ```sh
-RUN_COMMIT_REAL_TESTS=1 node --test tests/transacaoResposta.test.js
+env RUN_ATLAS_TESTS=1 RUN_COMMIT_REAL_TESTS=0 RUN_CONCORRENCIA_REAL_TESTS=1 node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/concorrenciaPersonagens.mongo.test.js
 ```
 
-`bancoCommitReal.test.js` possui oito testes sem conexão, cobrindo ativação
-explícita, configuração obrigatória, bloqueio de destinos indevidos antes da
-conexão/criação, verificação do banco efetivo e mensagens sem credenciais.
-O Atlas ainda não validou commit/persistência; as tentativas de autenticação
-estão suspensas. O resultado anterior com MongoDB local está documentado em
-`issue72-transacoes.md`.
+Esses comandos não são parte da regressão offline. Não usar `npm test` com
+flags habilitadas como primeira validação de um ambiente.
 
-Na implementação atual, dois erros e a combinação acerto/erro produzem `[1, 1]`.
-Esses testes de regressão ficam vermelhos até a correção da concorrência.
-Dois acertos passam porque ambos atualizam o mesmo perfil e a transação em
-conflito é repetida. Consulte `issue72-transacoes.md` para a proposta mínima.
-
-A contagem da suíte completa depende da ativação do commit real, pois seus
-subtestes só são registrados quando a integração é executada. Não confundir
-a quantidade de cenários disponíveis com uma execução completa aprovada.
+Os relatórios históricos `issue71-*.md` e `issue72-*.md` podem conter destinos,
+comandos e diagnósticos anteriores. Não substituem este contrato de segurança.
