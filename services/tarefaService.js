@@ -27,12 +27,26 @@ const getTarefasByComodoId = async (comodoId) => {
   const tarefasDoComodo = await TarefaModel.find({ comodoId: comodoId });
   return tarefasDoComodo;
 };
+// Verifica se o áudio informado é uma string válida
+const validarAudioEnunciado = (audioEnunciado) => {
+  // O campo é opcional
+  if (audioEnunciado === undefined || audioEnunciado === null) {
+    return;
+  }
 
+  if (typeof audioEnunciado !== "string" || audioEnunciado.trim() === "") {
+    const error = new Error("Áudio do enunciado inválido");
+    error.status = 400;
+    throw error;
+  }
+};
 // funcao para poder cadastrar uma tarefa
 
 const postTarefa = async (dadosTarefa) => {
   // verificando se o comodo informado existe no Mondgo
   await validarComodo(dadosTarefa.comodoId);
+  // Verifica o áudio do enunciado, quando informado
+  validarAudioEnunciado(dadosTarefa.audioEnunciado);
   const tarefa = await TarefaModel.create(dadosTarefa);
   return tarefa;
 };
@@ -40,6 +54,7 @@ const postTarefa = async (dadosTarefa) => {
 const putTarefaById = async (id, dadosTarefa) => {
   // verificando se o comodo informado existe no Mondgo
   await validarComodo(dadosTarefa.comodoId);
+  validarAudioEnunciado(dadosTarefa.audioEnunciado);
   const tarefa = await TarefaModel.findByIdAndUpdate(id, dadosTarefa, {
     new: true,
     runValidators: true,
@@ -54,6 +69,7 @@ const patchTarefaById = async (id, dadosAtualizados) => {
     // verificando se o comodo informado existe no Mondgo
     await validarComodo(dadosAtualizados.comodoId);
   }
+  validarAudioEnunciado(dadosAtualizados.audioEnunciado);
   const tarefa = await TarefaModel.findByIdAndUpdate(id, dadosAtualizados, {
     new: true,
     runValidators: true,

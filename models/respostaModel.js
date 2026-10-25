@@ -11,6 +11,17 @@ const respostaSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // Referência da imagem apresentada na alternativa
+  imagem: {
+    type: String,
+    required: false,
+  },
+
+  // Referência do áudio da alternativa
+  audio: {
+    type: String,
+    required: false,
+  },
 
   correta: {
     type: Boolean,
