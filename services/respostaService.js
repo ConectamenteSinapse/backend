@@ -10,7 +10,19 @@ const validarTarefa = async (tarefaId) => {
     throw error;
   }
 };
+// Verifica se a referência de mídia é válida
+const validarMidia = (valor) => {
+  // Campo opcional
+  if (valor === undefined || valor === null) {
+    return;
+  }
 
+  if (typeof valor !== "string" || valor.trim() === "") {
+    const error = new Error("Referência de mídia inválida");
+    error.status = 400;
+    throw error;
+  }
+};
 // Funcao para pegar todas as respostas
 const getAllRespostas = async () => {
   const respostas = await RespostaModel.find().select("-correta");
@@ -37,6 +49,9 @@ const getRespostasByTarefaIdSemCorreta = async (tarefaId) => {
 //funcao para criar Resposta
 const postResposta = async (dadosResposta) => {
   await validarTarefa(dadosResposta.tarefaId);
+  // Valida as referências de imagem e áudio
+  validarMidia(dadosResposta.imagem);
+  validarMidia(dadosResposta.audio);
   const novaResposta = await RespostaModel.create(dadosResposta);
   return novaResposta;
 };
@@ -44,6 +59,8 @@ const postResposta = async (dadosResposta) => {
 // funcao para edicao completa da resposta
 const putRespostaById = async (id, dadosAtualizados) => {
   await validarTarefa(dadosAtualizados.tarefaId);
+  validarMidia(dadosAtualizados.imagem);
+  validarMidia(dadosAtualizados.audio);
   const resposta = await RespostaModel.findByIdAndUpdate(id, dadosAtualizados, {
     new: true,
     runValidators: true,
@@ -55,6 +72,8 @@ const patchRespostaById = async (id, dadosAtualizados) => {
   if (dadosAtualizados.tarefaId !== undefined) {
     await validarTarefa(dadosAtualizados.tarefaId);
   }
+  validarMidia(dadosAtualizados.imagem);
+  validarMidia(dadosAtualizados.audio);
   const resposta = await RespostaModel.findByIdAndUpdate(id, dadosAtualizados, {
     new: true,
     runValidators: true,

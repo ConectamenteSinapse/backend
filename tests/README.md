@@ -131,3 +131,74 @@ A limpeza foi confirmada nos 15 cenários reais. Os testes reais não são
 reexecutados durante esta preparação. Consulte `issue58-resumo-desempenho.md`
 para resultados históricos, contrato e limitações. Os 89/0/16 documentados acima
 correspondem à infraestrutura isolada do PR #86, sem os arquivos da issue #58.
+
+## Issue #90 — referências de imagem e áudio
+
+Contrato aprovado para `Tarefa.audioEnunciado`, `Resposta.imagem` e
+`Resposta.audio`: campo omitido/`undefined` não informa mídia; `null` representa
+sua ausência; qualquer string não vazia após `trim()` é aceita, sem exigir URL
+ou caminho específico. A implementação não normaliza a string. String vazia,
+somente espaços, número, booleano, objeto e array são rejeitados nos Services
+com `status = 400`, antes da escrita. Os Controllers traduzem esses erros em
+HTTP 400. `imagemObjeto` e os textos continuam obrigatórios.
+
+Arquivos específicos:
+
+- `midia.issue90.test.js`: 96 testes locais. Inclui a matriz dos três campos
+  em cadastro/PUT/PATCH, schemas legados e campos obrigatórios, manutenção,
+  relacionamentos, consultas HTTP, autenticação, gabarito oculto e escritas
+  desativadas. Usa mocks de persistência e bloqueia conexões MongoDB.
+- `helpers/midiaIssue90.js`: fixtures e referências aos componentes reais;
+  não abre conexões, carrega ambiente ou cadastra rotas de manutenção.
+- `midia.issue90.mongo.test.js`: 13 cenários mais o teste agrupador (14 na
+  contagem do Node). Usa somente os helpers de segurança existentes e uma
+  segunda conexão para conferir documentos persistidos, tipos e limpeza.
+
+PUT exige os campos antigos no Controller, mas o Service usa
+`findByIdAndUpdate()` e preserva campos de mídia omitidos. PATCH permite
+atualização parcial. Ambos são testados por chamada interna ao Controller ou
+Service; as rotas públicas de escrita não são ativadas para os testes.
+
+### Execução específica no PowerShell
+
+Sem banco, sem carregar `.env`:
+
+```powershell
+$env:RUN_ATLAS_TESTS = "0"
+$env:RUN_COMMIT_REAL_TESTS = "0"
+$env:RUN_CONCORRENCIA_REAL_TESTS = "0"
+node --test --test-concurrency=1 --test-reporter=tap tests/midia.issue90.test.js tests/midia.issue90.mongo.test.js
+```
+
+Integração real, somente após validar as condições de segurança descritas
+acima e configurar `MONGO_TEST_URI` exclusivamente para `conectamente_testes`:
+
+```powershell
+$env:RUN_ATLAS_TESTS = "1"
+$env:RUN_COMMIT_REAL_TESTS = "0"
+$env:RUN_CONCORRENCIA_REAL_TESTS = "0"
+node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/midia.issue90.mongo.test.js
+```
+
+A suíte registra IDs antes de criar documentos, nunca altera fixtures de
+outras execuções e confere que suas sentinelas permaneçam inalteradas durante
+a manutenção. O teardown só exclui IDs próprios e verifica resíduos pela
+segunda conexão. Não compara nem modifica o conjunto inteiro de dados
+preexistentes. As permissões e os limites dos helpers não são substituídos.
+
+### Evidências de 25/10/2026
+
+Node.js 24.22.1, branch da issue #90, com a implementação local do aluno:
+
+- Específicos locais: 96 aprovados, 0 falhos; integração ignorada nesta etapa.
+- Integração específica: 14 aprovados, 0 falhos, 0 ignorados; limpeza confirmada
+  por conexão independente.
+- Suíte completa sem banco: 222 aprovados, 0 falhos e 32 ignorados.
+- Nove suítes reais anteriores, executadas sequencialmente: 100 aprovados,
+  0 falhos e 0 ignorados.
+- Integrações executadas ao todo: 114 aprovações. Todos os casos inicialmente
+  ignorados tiveram execução posterior; nenhum ficou pendente.
+
+Não somar novamente os 96 específicos aos 222 locais: eles já estão incluídos.
+As contagens do Node incluem testes agrupadores. Nenhuma regressão foi
+identificada. Os arquivos de produção e `.env` foram preservados.

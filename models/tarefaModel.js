@@ -25,6 +25,11 @@ const tarefaSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // Referência ao áudio que reproduz o enunciado da tarefa
+  audioEnunciado: {
+    type: String,
+    required: false,
+  },
 
   posicao: {
     x: {
