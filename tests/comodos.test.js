@@ -47,7 +47,7 @@ test(
 
     async function bloqueado(comodo, dificuldade = "facil") {
       await rejeitar(comodo.tarefas[0], dificuldade, 403, {
-        mensagem: "Conclua o cômodo anterior para continuar!",
+        erro: true, mensagem: "Conclua o cômodo anterior para continuar!",
         codigo: "COMODO_BLOQUEADO",
       });
     }
@@ -144,7 +144,7 @@ test(
       "Tarefa ativa vinculada a cômodo inexistente retorna HTTP 403 COMODO_INDISPONIVEL",
       async () => {
         await rejeitar(tarefaOrfa, "facil", 403, {
-          mensagem: "Cômodo indisponível no momento",
+          erro: true, mensagem: "Cômodo indisponível no momento",
           codigo: "COMODO_INDISPONIVEL",
         });
       },
@@ -154,7 +154,7 @@ test(
       "Cômodo inativo com tarefa ativa retorna HTTP 403 COMODO_INDISPONIVEL",
       async () => {
         await rejeitar(inativo.tarefa, "facil", 403, {
-          mensagem: "Cômodo indisponível no momento",
+          erro: true, mensagem: "Cômodo indisponível no momento",
           codigo: "COMODO_INDISPONIVEL",
         });
       },
@@ -173,7 +173,7 @@ test(
         // A API aceita tarefaId, não comodoId. Sem tarefa não é possível
         // alcançar COMODO_INDISPONIVEL; o Service rejeita a tarefa antes disso.
         await rejeitar(vazio.tarefaAusente, "facil", 404, {
-          mensagem: "Registro não encontrado",
+          erro: true, mensagem: "Registro não encontrado",
         });
       },
     );
@@ -182,7 +182,7 @@ test(
       "Cômodo sem tarefas ativas: tarefa inativa retorna HTTP 403 antes da validação do cômodo",
       async () => {
         await rejeitar(soInativas.tarefa, "facil", 403, {
-          mensagem: "Tarefa indisponível",
+          erro: true, mensagem: "Tarefa indisponível",
         });
       },
     );

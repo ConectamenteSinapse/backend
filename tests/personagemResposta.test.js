@@ -29,7 +29,7 @@ test(
       const antes = await jogo.estadoPersonagens();
       assert.deepEqual(await responder(perfilJogoId), {
         status,
-        dados: { mensagem },
+        dados: { erro: true, mensagem },
       });
       // Compara todos os documentos, incluindo estrelas, histórico e tentativas
       // dos dois personagens ativos, do arquivado e da outra criança.
@@ -153,7 +153,7 @@ test(
         assert.deepEqual(resultado, {
           status: 403,
           dados: {
-            mensagem: "Conclua a dificuldade anterior para continuar!",
+            erro: true, mensagem: "Conclua a dificuldade anterior para continuar!",
             codigo: "DIFICULDADE_BLOQUEADA",
           },
         });

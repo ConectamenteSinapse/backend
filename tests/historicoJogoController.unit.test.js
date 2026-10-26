@@ -66,7 +66,7 @@ test("Controller rejeita personagem ausente antes de chamar o Service: HTTP 400"
     assert.deepEqual(await executar({ ...bodyValido, perfilJogoId }), {
       status: 400,
       dados: {
-        mensagem:
+        erro: true, mensagem:
           "Personagem, jogo salvo, tarefa, resposta e dificuldade são obrigatórios",
       },
     });
@@ -81,7 +81,7 @@ test("Service real rejeita formato inválido e Controller retorna HTTP 400 sem c
   for (const perfilJogoId of ["invalido", "123", "z".repeat(24), {}, [], 42]) {
     assert.deepEqual(await executar({ ...bodyValido, perfilJogoId }), {
       status: 400,
-      dados: { mensagem: "ID inválido" },
+      dados: { erro: true, mensagem: "ID inválido" },
     });
   }
   assert.equal(consulta.mock.callCount(), 0);
@@ -93,7 +93,7 @@ test("Controller traduz PERFIL_JOGO_NAO_ENCONTRADO para HTTP 404", async (t) => 
   });
   assert.deepEqual(await executar(bodyValido), {
     status: 404,
-    dados: { mensagem: "Registro não encontrado" },
+    dados: { erro: true, mensagem: "Registro não encontrado" },
   });
 });
 
@@ -105,7 +105,7 @@ test("Controller rejeita dificuldade inválida antes do Service: HTTP 400", asyn
     await executar({ ...bodyValido, dificuldade: "impossivel" }),
     {
       status: 400,
-      dados: { mensagem: "Dificuldade inválida" },
+      dados: { erro: true, mensagem: "Dificuldade inválida" },
     },
   );
   assert.equal(chamada.mock.callCount(), 0);
@@ -117,7 +117,7 @@ test("Controller rejeita body ausente antes do Service: HTTP 400", async (t) => 
   });
   assert.deepEqual(await executar(undefined), {
     status: 400,
-    dados: { mensagem: "Body da requisição obrigatório" },
+    dados: { erro: true, mensagem: "Body da requisição obrigatório" },
   });
   assert.equal(chamada.mock.callCount(), 0);
 });
@@ -130,7 +130,7 @@ test("Controller rejeita jogoSalvoId ausente antes do Service: HTTP 400", async 
     assert.deepEqual(await executar({ ...bodyValido, jogoSalvoId }), {
       status: 400,
       dados: {
-        mensagem:
+        erro: true, mensagem:
           "Personagem, jogo salvo, tarefa, resposta e dificuldade são obrigatórios",
       },
     });
@@ -145,7 +145,7 @@ test("Service rejeita jogoSalvoId inválido sem consultar banco", async (t) => {
   for (const jogoSalvoId of ["invalido", "123", "z".repeat(24), {}, [], 42]) {
     assert.deepEqual(await executar({ ...bodyValido, jogoSalvoId }), {
       status: 400,
-      dados: { mensagem: "ID inválido" },
+      dados: { erro: true, mensagem: "ID inválido" },
     });
   }
   assert.equal(consulta.mock.callCount(), 0);
@@ -157,6 +157,6 @@ test("Controller traduz partida inexistente para HTTP 404", async (t) => {
   });
   assert.deepEqual(await executar(bodyValido), {
     status: 404,
-    dados: { mensagem: "Registro não encontrado" },
+    dados: { erro: true, mensagem: "Registro não encontrado" },
   });
 });

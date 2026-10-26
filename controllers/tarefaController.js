@@ -3,23 +3,26 @@ import tarefaService from "../services/tarefaService.js";
 // funcao para tratar erros e nao precisar ficar repetindo
 const tratarErro = (error, res) => {
   if (error.name === "CastError") {
-    return res
-      .status(400)
-      .json({ mensagem: "ID invalido", erro: error.message });
+    return res.status(400).json({ erro: true, mensagem: "ID inválido" });
   }
   if (error.name === "ValidationError") {
-    return res
-      .status(400)
-      .json({ mensagem: "Erro da validacao", erro: error.message });
+    return res.status(400).json({ erro: true, mensagem: "Erro de validação" });
   }
   // Erros de regra de negócio, como cômodo inexistente
   if (error.status === 400) {
-    return res.status(400).json({
-      mensagem: error.message,
+    return res.status(400).json({ erro: true, mensagem: error.message });
+  }
+  // Ordem da tarefa já cadastrada neste cômodo
+  if (error.code === 11000) {
+    return res.status(409).json({
+      erro: true,
+      mensagem: "Já existe uma tarefa com essa ordem neste cômodo",
     });
   }
   console.log(error);
-  return res.status(500).json({ mensagem: "Erro interno do servidor" });
+  return res
+    .status(500)
+    .json({ erro: true, mensagem: "Erro interno do servidor" });
 };
 // funcao para listar todas as tarefas
 const getAllTarefas = async (req, res) => {
@@ -30,14 +33,15 @@ const getAllTarefas = async (req, res) => {
     return tratarErro(error, res);
   }
 };
-
 //funcao para buscar uma tarefa especifica
 const getTarefaById = async (req, res) => {
   const id = req.params.id;
   try {
     const tarefa = await tarefaService.getTarefaById(id);
     if (!tarefa) {
-      return res.status(404).json({ mensagem: "Tarefa não encontrada" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Tarefa não encontrada" });
     }
     return res.status(200).json(tarefa);
   } catch (error) {
@@ -63,10 +67,9 @@ const postTarefa = async (req, res) => {
     ) {
       return res
         .status(400)
-        .json({ erro: "Campos obrigatorios nao preenchidos" });
+        .json({ erro: true, mensagem: "Campos obrigatórios não preenchidos" });
     }
     const novaTarefa = await tarefaService.postTarefa(dadosTarefa);
-
     return res.status(201).json(novaTarefa);
   } catch (error) {
     return tratarErro(error, res);
@@ -91,11 +94,13 @@ const putTarefaById = async (req, res) => {
     ) {
       return res
         .status(400)
-        .json({ erro: "Campos obrigatorios nao preenchidos" });
+        .json({ erro: true, mensagem: "Campos obrigatórios não preenchidos" });
     }
     const tarefa = await tarefaService.putTarefaById(id, dadosTarefa);
     if (!tarefa) {
-      return res.status(404).json({ erro: "tarefa nao encontrada" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Tarefa não encontrada" });
     }
     return res.status(200).json(tarefa);
   } catch (error) {
@@ -109,13 +114,16 @@ const patchTarefaById = async (req, res) => {
   try {
     // verifianco se todos os campos obrigatorios foram pegos:
     if (!dadosAtualizados || Object.keys(dadosAtualizados).length === 0) {
-      return res
-        .status(400)
-        .json({ erro: "Nenhum campo enviado para atualização" });
+      return res.status(400).json({
+        erro: true,
+        mensagem: "Nenhum campo enviado para atualização",
+      });
     }
     const tarefa = await tarefaService.patchTarefaById(id, dadosAtualizados);
     if (!tarefa) {
-      return res.status(404).json({ erro: "tarefa nao encontrada" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "tarefa nao encontrada" });
     }
     return res.status(200).json(tarefa);
   } catch (error) {
@@ -128,7 +136,9 @@ const deleteTarefaById = async (req, res) => {
   try {
     const tarefaDeletada = await tarefaService.deleteTarefaById(id);
     if (!tarefaDeletada) {
-      return res.status(404).json({ erro: "tarefa nao encontrada" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Tarefa não encontrada" });
     }
     return res.sendStatus(204);
   } catch (error) {

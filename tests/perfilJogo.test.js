@@ -418,7 +418,7 @@ test("Issue #71: DELETE preserva documento e bloqueia leitura, edição e novas 
   });
   assert.deepEqual(res, {
     status: 404,
-    dados: { mensagem: "Registro não encontrado" },
+    dados: { erro: true, mensagem: "Registro não encontrado" },
   });
   assert.equal(sessao.mock.callCount(), 0);
   assert.deepEqual(j.perfis.get(id), { ...antes, status: "arquivado" });
@@ -451,7 +451,7 @@ test("Issue #71: arquivamento condicional repetido retorna 404 sem nova alteraç
   for (let repeticao = 0; repeticao < 2; repeticao++) {
     assert.deepEqual(await j.chamar("DELETE", `/${id}`), {
       status: 404,
-      dados: { mensagem: "Criança ou personagem não encontrado" },
+      dados: { erro: true, mensagem: "Criança ou personagem não encontrado" },
     });
     assert.deepEqual(j.perfis.get(id), depois);
   }
@@ -497,7 +497,7 @@ test("Issue #71: ValidationError e CastError Mongoose retornam 400 nos cinco end
           await j.chamar(method, caminho, body),
           {
             status: 400,
-            dados: { mensagem: "Dados inválidos" },
+            dados: { erro: true, mensagem: "Dados inválidos" },
           },
           `${method} ${caminho}: ${erro.name}`,
         );
@@ -520,7 +520,7 @@ test("Issue #71: erro inesperado no findOneAndUpdate retorna 500 sem arquivar", 
   });
   assert.deepEqual(await j.chamar("DELETE", `/${id}`), {
     status: 500,
-    dados: { mensagem: "Erro interno do servidor" },
+    dados: { erro: true, mensagem: "Erro interno do servidor" },
   });
   assert.equal(arquivar.mock.callCount(), 1);
   assert.deepEqual(j.perfis.get(id), antes);
@@ -556,7 +556,7 @@ test("Issue #71: falha inesperada retorna 500 genérico nos cinco endpoints", as
           ? { nomeAvatar: "A", imagemAvatar: "a.png" }
           : undefined,
       ),
-      { status: 500, dados: { mensagem: "Erro interno do servidor" } },
+      { status: 500, dados: { erro: true, mensagem: "Erro interno do servidor" } },
     );
 });
 
@@ -566,7 +566,7 @@ test("Issue #71: JWT_SECRET ausente retorna 500 antes do banco", async (t) => {
   delete process.env.JWT_SECRET;
   assert.deepEqual(await j.chamar("GET", "", undefined, `Bearer ${token}`), {
     status: 500,
-    dados: { mensagem: "Erro interno do servidor" },
+    dados: { erro: true, mensagem: "Erro interno do servidor" },
   });
   assert.equal(j.consultaCrianca.mock.callCount(), 0);
 });

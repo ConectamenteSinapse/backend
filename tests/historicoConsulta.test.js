@@ -6,7 +6,7 @@ import { prepararProgresso } from "./helpers/progresso.js";
 
 const negado = {
   status: 403,
-  dados: { mensagem: "Você não tem permissão para consultar este histórico" },
+  dados: { erro: true, mensagem: "Você não tem permissão para consultar este histórico" },
 };
 
 // A mesma preparação da issue #56 cria somente documentos fictícios,
@@ -52,7 +52,7 @@ test(
       for (const id of ["invalido", "123", "z".repeat(24)]) {
         assert.deepEqual(await jogo.consultarHistorico(id), {
           status: 400,
-          dados: { mensagem: "ID da criança inválido" },
+          dados: { erro: true, mensagem: "ID da criança inválido" },
         });
       }
     });
@@ -62,7 +62,7 @@ test(
         await jogo.consultarHistorico(new mongoose.Types.ObjectId()),
         {
           status: 404,
-          dados: { mensagem: "Criança não encontrada" },
+          dados: { erro: true, mensagem: "Criança não encontrada" },
         },
       );
     });
@@ -73,7 +73,7 @@ test(
         const inicio = jogo.comandos.length;
         assert.deepEqual(await jogo.consultarHistorico(usuarioId, null), {
           status: 401,
-          dados: { mensagem: "Token nao informado" },
+          dados: { erro: true, mensagem: "Token nao informado" },
         });
         assert.deepEqual(jogo.comandos.slice(inicio), []);
       },
