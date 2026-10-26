@@ -1,2 +1,5 @@
 node_modules/
 .env
+# Arquivos temporários dos testes da issue #62
+tests/issue62-*.tap
+tests/issue62-*.log
