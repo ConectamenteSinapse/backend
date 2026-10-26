@@ -105,7 +105,7 @@ test("#52: tarefa existente sem respostas retorna HTTP 200 e []", async (t) => {
 test("#52: tarefa inexistente retorna HTTP 404 sem consultar alternativas", async (t) => {
   const j = await preparar(t);
   assert.deepEqual(await j.consultar(id()), {
-    status: 404, dados: { mensagem: "Tarefa não encontrada" },
+    status: 404, dados: { erro: true, mensagem: "Tarefa não encontrada" },
   });
   assert.deepEqual(j.consultas, [Tarefa]);
 });
@@ -113,7 +113,7 @@ test("#52: tarefa inexistente retorna HTTP 404 sem consultar alternativas", asyn
 test("#52: identificador inválido retorna HTTP 400 sem consultar alternativas", async (t) => {
   const j = await preparar(t);
   assert.deepEqual(await j.consultar("id-invalido"), {
-    status: 400, dados: { mensagem: "ID invalido" },
+    status: 400, dados: { erro: true, mensagem: "ID inválido" },
   });
   assert.deepEqual(j.consultas, [Tarefa]);
 });

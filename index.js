@@ -47,7 +47,20 @@ app.get("/", (req, res) => {
   return res.status(200).send("Api iniciado com Sucesso");
   //code 200 sucess - sucesso
 });
-
+// Tratar erros de JSON e URL inválidos
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && error.status === 400 && "body" in error) {
+    return res.status(400).json({ erro: true, mensagem: "JSON inválido" });
+  }
+  if (error instanceof URIError) {
+    return res.status(400).json({ erro: true, mensagem: "URL inválida" });
+  }
+  return next(error);
+});
+// Tratar rotas inexistentes
+app.use((req, res) => {
+  return res.status(404).json({ erro: true, mensagem: "Rota não encontrada" });
+});
 //inciando o servidor
 app.listen(port, () => {
   console.log(`Servidor rodando em http://localhost:${port}`);

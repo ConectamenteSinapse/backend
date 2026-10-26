@@ -2,55 +2,67 @@ import responsavelService from "../services/responsavelService.js";
 // tratar error
 const tratarErro = (error, res) => {
   if (error.message === "ID_INVALIDO") {
-    return res.status(400).json({ mensagem: error.message });
+    return res.status(400).json({ erro: true, mensagem: "ID inválido" });
   }
   if (error.message === "PERFIL_USUARIO_INVALIDO") {
-    return res.status(400).json({ mensagem: error.message });
+    return res
+      .status(400)
+      .json({ erro: true, mensagem: "Perfil de usuário inválido" });
   }
   if (error.message === "USUARIO_NAO_ENCONTRADO") {
-    return res.status(404).json({ mensagem: "Usuario não encontrado" });
+    return res
+      .status(404)
+      .json({ erro: true, mensagem: "Usuario não encontrado" });
   }
   if (error.message === "RESPONSAVEL_NAO_ENCONTRADO") {
-    return res.status(404).json({ mensagem: "Responsavel nao encontrado" });
+    return res
+      .status(404)
+      .json({ erro: true, mensagem: "Responsavel nao encontrado" });
   }
   if (error.message === "PERFIL_RESPONSAVEL_EXISTENTE") {
-    return res
-      .status(409)
-      .json({ mensagem: "Este usuario ja possui um perfil de responsavel" });
+    return res.status(409).json({
+      erro: true,
+      mensagem: "Este usuario ja possui um perfil de responsavel",
+    });
   }
   if (error.message === "CRIANCA_NAO_ENCONTRADA") {
-    return res.status(404).json({ mensagem: "Criança não encontrada" });
+    return res
+      .status(404)
+      .json({ erro: true, mensagem: "Criança não encontrada" });
   }
   if (error.message === "CRIANCA_JA_VINCULADA") {
-    return res
-      .status(409)
-      .json({ mensagem: "Criança já possui responsável vinculado" });
+    return res.status(409).json({
+      erro: true,
+      mensagem: "Criança já possui responsável vinculado",
+    });
   }
   if (error.name === "ValidationError" || error.name === "CastError") {
-    return res.status(400).json({ mensagem: "Dados invalidos" });
+    return res.status(400).json({ erro: true, mensagem: "Dados invalidos" });
   }
   // duplicidadae do mongoDB
   if (error.code === 11000) {
-    return res.status(409).json({ mensagem: "Registro duplicado" });
+    return res.status(409).json({ erro: true, mensagem: "Registro duplicado" });
   }
   if (error.message === "CREDENCIAIS_INVALIDAS") {
-    return res.status(401).json({
-      mensagem: "E-mail ou senha inválidos",
-    });
+    return res
+      .status(401)
+      .json({ erro: true, mensagem: "E-mail ou senha inválidos" });
   }
   if (error.message === "PERMISSAO_INVALIDA") {
-    return res.status(400).json({
-      mensagem: "A permissão deve ser true ou false",
-    });
+    return res
+      .status(400)
+      .json({ erro: true, mensagem: "A permissão deve ser true ou false" });
   }
-
   if (error.message === "CRIANCA_NAO_VINCULADA") {
     return res.status(404).json({
+      erro: true,
       mensagem: "Criança não encontrada entre as contas vinculadas",
     });
   }
   console.log(error);
-  return res.status(500).json({ mensagem: "Erro interno do servidor" });
+  return res
+    .status(500)
+    .json({ erro: true, mensagem: "Erro interno do servidor" });
 };
 
 // Listar os Responsaveis
@@ -71,7 +83,9 @@ const getResponsavelById = async (req, res) => {
       req.params.id,
     );
     if (!responsavel) {
-      return res.status(404).json({ mensagem: "Responsavel não encontrado" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Responsavel não encontrado" });
     }
     return res.status(200).json(responsavel);
   } catch (error) {
@@ -84,27 +98,22 @@ const alterarPermissaoCrianca = async (req, res) => {
   try {
     // Identificar o responsável autenticado pelo JWT
     const usuarioId = req.usuario.id;
-
     // Obter o ID da criança pela URL
     const criancaId = req.params.criancaId;
-
     // Verificar se o Body foi informado
     if (!req.body) {
-      return res.status(400).json({
-        mensagem: "Body da requisição obrigatório",
-      });
+      return res
+        .status(400)
+        .json({ erro: true, mensagem: "Body da requisição obrigatório" });
     }
-
     // Obter a permissão enviada pelo responsável
     const permissaoAtiva = req.body.permissaoAtiva;
-
     // Chamar o Service
     const crianca = await responsavelService.alterarPermissaoCrianca(
       usuarioId,
       criancaId,
       permissaoAtiva,
     );
-
     // Retornar apenas a informação atualizada
     return res.status(200).json({
       mensagem: "Permissão atualizada com sucesso",
@@ -123,7 +132,9 @@ const getResponsavelByUsuarioId = async (req, res) => {
       req.params.usuarioId,
     );
     if (!responsavel) {
-      return res.status(404).json({ mensagem: "Responsavel nao encontrado" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Responsavel nao encontrado" });
     }
     return res.status(200).json(responsavel);
   } catch (error) {
@@ -161,7 +172,7 @@ const vincularCrianca = async (req, res) => {
     if (!req.body) {
       return res
         .status(400)
-        .json({ mensagem: "Body da requisição obrigatorio" });
+        .json({ erro: true, mensagem: "Body da requisição obrigatorio" });
     }
     const email = req.body.email;
     const senha = req.body.senha;
@@ -173,15 +184,13 @@ const vincularCrianca = async (req, res) => {
     ) {
       return res
         .status(400)
-        .json({ mensagem: "E-mail e senha são obrigatórios" });
+        .json({ erro: true, mensagem: "E-mail e senha são obrigatórios" });
     }
-
     const resultado = await responsavelService.vincularCrianca(
       usuarioId,
       email,
       senha,
     );
-
     return res.status(200).json(resultado);
   } catch (error) {
     return tratarErro(error, res);

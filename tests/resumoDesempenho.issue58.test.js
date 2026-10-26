@@ -10,7 +10,7 @@ const vazio = {
 };
 const negado = {
   status: 403,
-  dados: { mensagem: "Você não tem permissão para consultar este resumo" },
+  dados: { erro: true, mensagem: "Você não tem permissão para consultar este resumo" },
 };
 async function prepararHttp(t) {
   const jogo = prepararResumo(t);
@@ -67,7 +67,7 @@ test("#58 HTTP: ID malformado — 400 antes de consultar qualquer Model", async 
   const j = await prepararHttp(t);
   for (const valor of ["invalido", "123", "z".repeat(24)]) {
     assert.deepEqual(await j.consultar(valor), {
-      status: 400, dados: { mensagem: "ID da criança inválido" },
+      status: 400, dados: { erro: true, mensagem: "ID da criança inválido" },
     });
   }
   assert.deepEqual(j.consultas, []);
@@ -76,7 +76,7 @@ test("#58 HTTP: ID malformado — 400 antes de consultar qualquer Model", async 
 test("#58 HTTP: criança inexistente — 404", async (t) => {
   const j = await prepararHttp(t);
   assert.deepEqual(await j.consultar(id()), {
-    status: 404, dados: { mensagem: "Criança não encontrada" },
+    status: 404, dados: { erro: true, mensagem: "Criança não encontrada" },
   });
   semHistorico(j);
 });
@@ -84,7 +84,7 @@ test("#58 HTTP: criança inexistente — 404", async (t) => {
 test("#58 HTTP: sem JWT — 401 antes de consultar o banco", async (t) => {
   const j = await prepararHttp(t);
   assert.deepEqual(await j.consultar(j.crianca.usuarioId, null), {
-    status: 401, dados: { mensagem: "Token nao informado" },
+    status: 401, dados: { erro: true, mensagem: "Token nao informado" },
   });
   assert.deepEqual(j.consultas, []);
 });
@@ -194,7 +194,7 @@ for (const model of [Crianca, Responsavel, Historico]) {
       id: String(j.responsavel.usuarioId), perfil: "responsavel",
     });
     assert.deepEqual(res, {
-      status: 500, dados: { mensagem: "Erro interno ao consultar resumo de desempenho" },
+      status: 500, dados: { erro: true, mensagem: "Erro interno ao consultar resumo de desempenho" },
     });
     assert.doesNotMatch(JSON.stringify(res.dados), /db-interno|segredo-ficticio|stack|Error/);
     assert.equal(j.logs.mock.callCount(), 1);

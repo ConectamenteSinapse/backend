@@ -104,7 +104,7 @@ test("#58 Atlas acesso: outra criança recebe 403", opcoes, async (t) => {
   assert.deepEqual(await j.consultar(crianca, {
     usuario: { id: String(outra.usuarioId), perfil: "crianca" },
   }), {
-    status: 403, dados: { mensagem: "Você não tem permissão para consultar este resumo" },
+    status: 403, dados: { erro: true, mensagem: "Você não tem permissão para consultar este resumo" },
   });
   await j.confirmarPersistencia();
 });
@@ -119,7 +119,7 @@ test("#58 Atlas acesso: responsável sem vínculo recebe 403", opcoes, async (t)
   assert.deepEqual(await j.consultar(crianca, {
     usuario: { id: String(outro.usuarioId), perfil: "responsavel" },
   }), {
-    status: 403, dados: { mensagem: "Você não tem permissão para consultar este resumo" },
+    status: 403, dados: { erro: true, mensagem: "Você não tem permissão para consultar este resumo" },
   });
   await j.confirmarPersistencia();
 });
@@ -129,7 +129,7 @@ test("#58 Atlas acesso: sem JWT recebe 401", opcoes, async (t) => {
   const crianca = await j.criarCrianca();
   await j.confirmarPersistencia();
   assert.deepEqual(await j.consultar(crianca, { usuario: null }), {
-    status: 401, dados: { mensagem: "Token nao informado" },
+    status: 401, dados: { erro: true, mensagem: "Token nao informado" },
   });
   await j.confirmarPersistencia();
 });
@@ -139,7 +139,7 @@ test("#58 Atlas acesso: JWT inválido recebe 401", opcoes, async (t) => {
   const crianca = await j.criarCrianca();
   await j.confirmarPersistencia();
   assert.deepEqual(await j.consultar(crianca, { authorization: "Bearer invalido" }), {
-    status: 401, dados: { mensagem: "Token invalido ou expirado" },
+    status: 401, dados: { erro: true, mensagem: "Token invalido ou expirado" },
   });
   await j.confirmarPersistencia();
 });
@@ -150,7 +150,7 @@ test("#58 Atlas acesso: JWT expirado recebe 401", opcoes, async (t) => {
   await j.confirmarPersistencia();
   // Assinatura válida com exp no passado, sem espera ou alteração do relógio.
   assert.deepEqual(await j.consultar(crianca, { expirado: true }), {
-    status: 401, dados: { mensagem: "Token invalido ou expirado" },
+    status: 401, dados: { erro: true, mensagem: "Token invalido ou expirado" },
   });
   await j.confirmarPersistencia();
 });
@@ -161,7 +161,7 @@ test("#58 Atlas acesso: ID de usuário malformado recebe 400", opcoes, async (t)
   await j.confirmarPersistencia();
   for (const usuarioId of ["invalido", "123", "z".repeat(24)]) {
     assert.deepEqual(await j.consultar(crianca, { usuarioId }), {
-      status: 400, dados: { mensagem: "ID da criança inválido" },
+      status: 400, dados: { erro: true, mensagem: "ID da criança inválido" },
     });
   }
   await j.confirmarPersistencia();
@@ -173,7 +173,7 @@ test("#58 Atlas acesso: usuário sem cadastro de criança recebe 404", opcoes, a
   const usuario = await j.criarUsuario();
   await j.confirmarPersistencia();
   assert.deepEqual(await j.consultar({ usuarioId: usuario._id }), {
-    status: 404, dados: { mensagem: "Criança não encontrada" },
+    status: 404, dados: { erro: true, mensagem: "Criança não encontrada" },
   });
   await j.confirmarPersistencia();
 });

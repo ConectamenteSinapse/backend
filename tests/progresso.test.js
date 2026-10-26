@@ -6,7 +6,7 @@ import { prepararProgresso } from "./helpers/progresso.js";
 
 const negado = {
   status: 403,
-  dados: { mensagem: "Você não tem permissão para consultar este progresso" },
+  dados: { erro: true, mensagem: "Você não tem permissão para consultar este progresso" },
 };
 
 test(
@@ -52,7 +52,7 @@ test(
     await t.test("Criança inexistente retorna HTTP 404", async () => {
       assert.deepEqual(await jogo.consultar(new mongoose.Types.ObjectId()), {
         status: 404,
-        dados: { mensagem: "Criança não encontrada" },
+        dados: { erro: true, mensagem: "Criança não encontrada" },
       });
     });
 
@@ -60,7 +60,7 @@ test(
       for (const id of ["invalido", "123", "z".repeat(24)]) {
         assert.deepEqual(await jogo.consultar(id), {
           status: 400,
-          dados: { mensagem: "ID da criança inválido" },
+          dados: { erro: true, mensagem: "ID da criança inválido" },
         });
       }
     });
@@ -68,7 +68,7 @@ test(
     await t.test("Requisição sem JWT retorna HTTP 401", async () => {
       assert.deepEqual(await jogo.consultar(usuarioId, null), {
         status: 401,
-        dados: { mensagem: "Token nao informado" },
+        dados: { erro: true, mensagem: "Token nao informado" },
       });
     });
 

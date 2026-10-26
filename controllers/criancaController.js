@@ -8,35 +8,42 @@ const tratarErro = (error, res) => {
     error.message === "ID_INVALIDO" ||
     error.message === "PERFIL_USUARIO_INVALIDO"
   ) {
-    return res.status(400).json({ mensagem: error.message });
+    return res.status(400).json({ erro: true, mensagem: error.message });
   }
   //Usuario nao encontrado
   if (error.message === "USUARIO_NAO_ENCONTRADO") {
-    return res.status(404).json({ mensagem: "Usuario nao encontrado" });
+    return res
+      .status(404)
+      .json({ erro: true, mensagem: "Usuário não encontrado" });
   }
   //Perfil da crianca ja cadastrado
   if (error.message === "PERFIL_CRIANCA_EXISTENTE") {
-    return res
-      .status(409)
-      .json({ mensagem: "O usuario ja possui um perfil de crianca" });
+    return res.status(409).json({
+      erro: true,
+      mensagem: "O usuário já possui um perfil de criança",
+    });
   }
   // Erro de conversao do mongoose
   if (error.name === "CastError") {
-    return res.status(400).json({ mensagem: "Dados Invalidos" });
+    return res.status(400).json({ erro: true, mensagem: "Dados inválidos" });
   }
   // Erro de validação do mongoose
   if (error.name === "ValidationError") {
-    return res.status(400).json({ mensagem: "Erro de validação de dados" });
+    return res
+      .status(400)
+      .json({ erro: true, mensagem: "Erro de validação de dados" });
   }
   // Erro de indice unico no MongoDB
   if (error.code === 11000) {
     return res
       .status(409)
-      .json({ mensagem: "Ja existe um perfil para esse usuario" });
+      .json({ erro: true, mensagem: "Já existe um perfil para esse usuário" });
   }
   // outro erro
   console.error(error);
-  return res.status(500).json({ mensagem: "Erro interno do servidor" });
+  return res
+    .status(500)
+    .json({ erro: true, mensagem: "Erro interno do servidor" });
 };
 //consultar todos as criancas
 const getCriancas = async (req, res) => {
@@ -56,7 +63,7 @@ const getMeuPerfil = async (req, res) => {
     if (!crianca) {
       return res
         .status(404)
-        .json({ mensagem: "Perfil de crianca nao encontrada" });
+        .json({ erro: true, mensagem: "Perfil de criança não encontrado" });
     }
     return res.status(200).json(crianca);
   } catch (error) {
@@ -64,12 +71,13 @@ const getMeuPerfil = async (req, res) => {
   }
 };
 // Buscar uma crianca pelo id do Perfil
-
 const getCriancaById = async (req, res) => {
   try {
     const crianca = await criancaService.getCriancaById(req.params.id);
     if (!crianca) {
-      return res.status(404).json({ mensagem: "Criança nao encontrada" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Criança não encontrada" });
     }
     return res.status(200).json(crianca);
   } catch (error) {
@@ -85,7 +93,7 @@ const getCriancaByUsuarioId = async (req, res) => {
     if (!crianca) {
       return res
         .status(404)
-        .json({ mensagem: "Perfil de crianca nao encontrado" });
+        .json({ erro: true, mensagem: "Perfil de criança não encontrado" });
     }
     return res.status(200).json(crianca);
   } catch (error) {
@@ -112,7 +120,9 @@ const putCriancaById = async (req, res) => {
       req.body,
     );
     if (!crianca) {
-      return res.status(404).json({ mensagem: "Crianca nao encontrada" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Criança não encontrada" });
     }
     return res.status(200).json(crianca);
   } catch (error) {
@@ -128,7 +138,9 @@ const patchCriancaById = async (req, res) => {
       req.body,
     );
     if (!crianca) {
-      return res.status(404).json({ mensagem: "Crianca nao encontrada" });
+      return res
+        .status(404)
+        .json({ erro: true, mensagem: "Criança não encontrada" });
     }
     return res.status(200).json(crianca);
   } catch (error) {
