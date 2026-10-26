@@ -3,3 +3,6 @@ node_modules/
 # Arquivos temporários dos testes da issue #62
 tests/issue62-*.tap
 tests/issue62-*.log
+# Evidências temporárias locais dos testes da issue #94
+tests/issue94-*.tap
+tests/issue94-*.log

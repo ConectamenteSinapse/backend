@@ -105,6 +105,12 @@ const postCrianca = async (req, res) => {
   try {
     // retorna o ID do usuario autentificado pelo JWT
     const usuarioId = req.usuario.id;
+    // Verificar se o body foi informado
+    if (!req.body) {
+      return res
+        .status(400)
+        .json({ erro: true, mensagem: "Body da requisição obrigatório" });
+    }
     const crianca = await criancaService.postCrianca(req.body, usuarioId);
     return res.status(201).json(crianca);
   } catch (error) {
