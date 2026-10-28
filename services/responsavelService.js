@@ -57,7 +57,21 @@ const getMinhasCriancas = async (usuarioId) => {
     throw new Error("RESPONSAVEL_NAO_ENCONTRADO");
   }
 
-  return await CriancaModel.find({ responsavelId: responsavel._id });
+  const criancas = await CriancaModel.find({
+    responsavelId: responsavel._id,
+  }).populate("usuarioId", "nome email");
+
+  return criancas.map((crianca) => {
+    const dados = crianca.toObject();
+    const usuario = dados.usuarioId;
+
+    return {
+      ...dados,
+      usuarioId: usuario?._id ?? null,
+      nome: usuario?.nome ?? null,
+      email: usuario?.email ?? null,
+    };
+  });
 };
 
 // vincular uma crianca a um responsavel
