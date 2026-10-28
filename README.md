@@ -44,7 +44,8 @@ Utilize Node.js 24 ou superior para trabalhar também com a infraestrutura de te
 2. Crie um arquivo `.env`, usando [`.envExemplo.txt`](.envExemplo.txt) como referência. Substitua os valores ilustrativos pelos do ambiente escolhido:
 
    ```dotenv
-   PORT=3000
+   PORT=4000
+   FRONTEND_URL=http://localhost:3000
    MONGO_URI=mongodb+srv://USUARIO:SENHA@SEU_CLUSTER.mongodb.net/BANCO_DO_AMBIENTE
    JWT_SECRET=SUBSTITUA_POR_UM_SEGREDO_PROPRIO
    ```
@@ -57,9 +58,35 @@ Utilize Node.js 24 ou superior para trabalhar também com a infraestrutura de te
    npm start
    ```
 
-A URL base padrão é `http://localhost:3000`; `PORT` permite alterá-la. Os endpoints abaixo são relativos a essa base, sem prefixo `/api`.
+A URL base na configuração local acima é `http://localhost:4000`. Sem `PORT`, a aplicação utiliza a porta 3000. Os endpoints abaixo são relativos à base do backend, sem prefixo `/api`.
 
 A rota inicial confirma atendimento HTTP. Ela não testa a conexão com o banco: a inicialização atual não aguarda a conclusão da conexão antes de abrir a porta.
+
+### Configuração do CORS
+
+O backend utiliza a biblioteca `cors` para permitir que o frontend Next.js acesse a API a partir de uma origem autorizada.
+
+No ambiente de desenvolvimento local, utilizamos:
+
+| Aplicação          | Endereço                |
+| ------------------ | ----------------------- |
+| Frontend (Next.js) | `http://localhost:3000` |
+| Backend (Express)  | `http://localhost:4000` |
+
+No arquivo `.env` do backend, configure:
+
+```dotenv
+PORT=4000
+FRONTEND_URL=http://localhost:3000
+```
+
+A variável `FRONTEND_URL` define a origem autorizada pelo CORS.
+
+Quando essa variável não está configurada, o middleware não adiciona cabeçalhos de autorização CORS.
+
+O CORS não substitui a autenticação JWT. As rotas protegidas continuam exigindo o cabeçalho `Authorization: Bearer <token>`.
+
+Em outros ambientes, configure `FRONTEND_URL` com a origem real do frontend.
 
 ## Autenticação, autorização e identificadores
 
@@ -464,7 +491,7 @@ Crie uma coleção de requisições e um ambiente com estas variáveis:
 
 ```json
 {
-  "base_url": "http://localhost:3000",
+  "base_url": "http://localhost:4000",
   "token_crianca": "",
   "token_responsavel": "",
   "usuario_crianca_id": "",

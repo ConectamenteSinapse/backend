@@ -4,6 +4,8 @@ import express from "express";
 import dotenv from "dotenv";
 //Importando a conexao com o banco
 import connectDB from "./config/db-connection.js";
+// Importando o cors
+import cors from "cors";
 // importando os Router.js
 import usuarioRoutes from "./routes/usuarioRoutes.js";
 import comodoRoutes from "./routes/comodoRoutes.js";
@@ -21,6 +23,8 @@ import jogoSalvoRoutes from "./routes/jogoSalvoRoutes.js";
 const app = express();
 //chamando o dotenv
 dotenv.config();
+// Permitir requisições do frontend autorizado
+app.use(cors({ origin: process.env.FRONTEND_URL || false }));
 //Permite que o Express interprete dados enviados no  formato Json
 app.use(express.json());
 //Conectando o backend ao MongoDB Atlas

@@ -1,3 +1,4 @@
-PORT=????
+PORT=???
 MONGO_URI=mongodb+srv://USUARIO:SENHA@SEU_CLUSTER.mongodb.net/conectamente
 JWT_SECRET=COLOQUE_AQUI_UMA_CHAVE_SECRETA
+FRONTEND_URL=http://localhost:3000
