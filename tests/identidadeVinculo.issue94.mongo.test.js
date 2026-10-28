@@ -306,6 +306,7 @@ test("#94 Fase 1: identidade, vínculo e permissão por HTTP com MongoDB", {
   await t.test("14 preparar outro responsável por cadastro/login/perfil HTTP", async () => {
     await cadastrar(outro); await login(outro); await perfil(outro);
     await cadastrar(semPerfil); await login(semPerfil);
+    erro(await chamar("GET", "/responsaveis/minhas-criancas", undefined, semPerfil), 403);
   });
   await t.test("15 vínculo rejeita credenciais inválidas e criança sem perfil", () => semEscrita(async () => {
     for (const dados of [ { email: crianca.email, senha: "incorreta" }, credenciais(outro),
@@ -321,10 +322,17 @@ test("#94 Fase 1: identidade, vínculo e permissão por HTTP com MongoDB", {
     const salvo = (await estado()).Crianca.find((doc) => doc._id === crianca.perfilId);
     assert.equal(salvo.responsavelId, responsavel.perfilId); assert.equal(salvo.permissaoAtiva, false);
   });
-  await t.test("17 listagem isola crianças por responsável", async () => {
+  await t.test("17 listagem isola crianças por responsável e inclui identidade", async () => {
     const lista = await chamar("GET", "/responsaveis/minhas-criancas", undefined, responsavel);
     const alheias = await chamar("GET", "/responsaveis/minhas-criancas", undefined, outro);
     assert.equal(lista.status, 200); assert.deepEqual(lista.body.map((doc) => doc._id), [crianca.perfilId]);
+    const vinculada = lista.body[0];
+    assert.equal(vinculada.usuarioId, crianca.id);
+    assert.equal(vinculada.nome, crianca.nome);
+    assert.equal(vinculada.email, crianca.email);
+    assert.equal(Object.hasOwn(vinculada, "senha"), false);
+    assert.equal(vinculada.responsavelId, responsavel.perfilId);
+    assert.equal(vinculada.permissaoAtiva, false);
     assert.equal(alheias.status, 200); assert.deepEqual(alheias.body, []);
   });
   await t.test("18 vínculo duplicado pelo mesmo/outro responsável retorna 409", () => semEscrita(async () => {
