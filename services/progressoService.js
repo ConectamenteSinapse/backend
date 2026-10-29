@@ -116,5 +116,75 @@ const consultarProgressoJogo = async (usuarioId, jogoSalvoId) => {
     tarefas,
   };
 };
+// Consultar a evolução diária do progresso da criança
+const consultarEvolucaoDiaria = async (criancaId, usuarioAutenticado) => {
+  // Validar a criança e a autorização do usuário
+  const crianca = await validarAcessoCrianca(criancaId, usuarioAutenticado);
 
-export { consultarProgresso, consultarProgressoJogo };
+  // Consultar as tentativas registradas no MongoDB
+  const historicos = await HistoricoJogoModel.find({
+    criancaId: crianca._id,
+  })
+    .sort({ dataHora: 1 })
+    .lean();
+  // Agrupar as tentativas por dia
+  const diasAgrupados = new Map();
+
+  for (const historico of historicos) {
+    // Converter a data para o horário de São Paulo
+    const partes = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(historico.dataHora);
+
+    const ano = partes.find((parte) => parte.type === "year").value;
+    const mes = partes.find((parte) => parte.type === "month").value;
+    const dia = partes.find((parte) => parte.type === "day").value;
+
+    const data = `${ano}-${mes}-${dia}`;
+
+    // Criar o agrupamento caso o dia ainda não exista
+    if (!diasAgrupados.has(data)) {
+      diasAgrupados.set(data, {
+        data,
+        totalTentativas: 0,
+        acertos: 0,
+        erros: 0,
+      });
+    }
+
+    // Recuperar os dados acumulados daquele dia
+    const dadosDia = diasAgrupados.get(data);
+
+    // Contabilizar a tentativa
+    dadosDia.totalTentativas += 1;
+
+    if (historico.acertou) {
+      dadosDia.acertos += 1;
+    } else {
+      dadosDia.erros += 1;
+    }
+  }
+  // Calcular o percentual de acertos de cada dia
+  const evolucao = Array.from(diasAgrupados.values()).map((dia) => {
+    const percentualAcertos = (dia.acertos / dia.totalTentativas) * 100;
+
+    return {
+      ...dia,
+      percentualAcertos: Number(percentualAcertos.toFixed(2)),
+    };
+  });
+
+  // Organizar os resultados por data
+  evolucao.sort((a, b) => a.data.localeCompare(b.data));
+
+  // Retornar a evolução diária da criança
+  return {
+    criancaId,
+    evolucao,
+  };
+};
+
+export { consultarProgresso, consultarProgressoJogo, consultarEvolucaoDiaria };
