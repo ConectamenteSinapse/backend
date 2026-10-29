@@ -59,6 +59,12 @@ const tratarErro = (error, res) => {
       mensagem: "Criança não encontrada entre as contas vinculadas",
     });
   }
+  if (error.message === "LIMITE_TEMPO_INVALIDO") {
+    return res.status(400).json({
+      erro: true,
+      mensagem: "O limite diário deve ser um número inteiro positivo ou null",
+    });
+  }
   console.log(error);
   return res
     .status(500)
@@ -123,7 +129,41 @@ const alterarPermissaoCrianca = async (req, res) => {
     return tratarErro(error, res);
   }
 };
+const alterarLimiteTempoCrianca = async (req, res) => {
+  try {
+    // Identificar o responsável autenticado
+    const usuarioId = req.usuario.id;
 
+    // Obter o identificador da criança
+    const criancaId = req.params.criancaId;
+
+    // Verificar se o body foi informado
+    if (!req.body) {
+      return res.status(400).json({
+        erro: true,
+        mensagem: "Body da requisição obrigatório",
+      });
+    }
+
+    // Obter o limite enviado
+    const limiteTempoDiario = req.body.limiteTempoDiario;
+
+    // Chamar o Service
+    const crianca = await responsavelService.alterarLimiteTempoCrianca(
+      usuarioId,
+      criancaId,
+      limiteTempoDiario,
+    );
+
+    // Retornar o limite atualizado
+    return res.status(200).json({
+      mensagem: "Limite diário atualizado com sucesso",
+      limiteTempoDiario: crianca.limiteTempoDiario,
+    });
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
 //Buscar responsavel pelo ID usuario
 
 const getResponsavelByUsuarioId = async (req, res) => {
@@ -205,4 +245,5 @@ export default {
   getMinhasCriancas,
   vincularCrianca,
   alterarPermissaoCrianca,
+  alterarLimiteTempoCrianca,
 };

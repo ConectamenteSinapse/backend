@@ -54,6 +54,7 @@ const body = {
   dificuldade: "facil", tarefaId: id, texto: "Teste", correta: false,
   perfilJogoId: id, jogoSalvoId: id, respostaEscolhidaId: id,
   nomeAvatar: "Teste", imagemAvatar: "teste.png", nomeJogo: "Teste", permissaoAtiva: false,
+  limiteTempoDiario: 30,
 };
 function req(dados = body) {
   return { body: dados, params: { id, usuarioId: id, criancaId: id, comodoId: id, tarefaId: id, respostaId: id },
@@ -64,7 +65,7 @@ function res() {
     json(dados) { this.body = dados; return this; },
     sendStatus(n) { this.statusCode = n; return this; } };
 }
-function configurar(t, erro = null, valor = { _id: id, permissaoAtiva: false,
+function configurar(t, erro = null, valor = { _id: id, permissaoAtiva: false, limiteTempoDiario: 30,
   acertou: false, tentativa: 2, pontuacaoGanha: 0, dificuldade: "facil" }) {
   estado.erro = erro; estado.valor = valor; estado.chamadas = [];
   t.mock.method(console, "error", () => {});
@@ -108,6 +109,7 @@ for (const { arquivo, funcoes } of grupos) {
       if (status === 204) assert.equal(resposta.body, undefined);
       else if (nome === "registrarResposta") assert.deepEqual(resposta.body, { acertou: false, tentativa: 2, pontuacaoGanha: 0, dificuldade: "facil" });
       else if (nome === "alterarPermissaoCrianca") assert.deepEqual(resposta.body, { mensagem: "Permissão atualizada com sucesso", permissaoAtiva: false });
+      else if (nome === "alterarLimiteTempoCrianca") assert.deepEqual(resposta.body, { mensagem: "Limite diário atualizado com sucesso", limiteTempoDiario: 30 });
       else if (nome === "loginUsuario") {
         assert.equal(jwt.verify(resposta.body.token, process.env.JWT_SECRET).id, id);
         assert.equal(resposta.body.usuario.senha, undefined);

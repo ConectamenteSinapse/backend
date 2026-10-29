@@ -181,6 +181,48 @@ const alterarPermissaoCrianca = async (
   return criancaAtualizada;
 };
 
+const alterarLimiteTempoCrianca = async (
+  usuarioId,
+  criancaId,
+  limiteTempoDiario,
+) => {
+  validarId(usuarioId);
+  validarId(criancaId);
+  if (
+    limiteTempoDiario !== null &&
+    (!Number.isInteger(limiteTempoDiario) || limiteTempoDiario < 1)
+  ) {
+    throw new Error("LIMITE_TEMPO_INVALIDO");
+  }
+  const responsavel = await ResponsavelModel.findOne({
+    usuarioId: usuarioId,
+  });
+
+  if (!responsavel) {
+    throw new Error("RESPONSAVEL_NAO_ENCONTRADO");
+  }
+  const criancaAtualizada = await CriancaModel.findOneAndUpdate(
+    {
+      _id: criancaId,
+      responsavelId: responsavel._id,
+    },
+    {
+      $set: {
+        limiteTempoDiario: limiteTempoDiario,
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+  if (!criancaAtualizada) {
+    throw new Error("CRIANCA_NAO_VINCULADA");
+  }
+
+  return criancaAtualizada;
+};
+
 export default {
   getResponsaveis,
   getResponsavelById,
@@ -189,4 +231,5 @@ export default {
   getMinhasCriancas,
   vincularCrianca,
   alterarPermissaoCrianca,
+  alterarLimiteTempoCrianca,
 };
