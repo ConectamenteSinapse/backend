@@ -34,6 +34,13 @@ router.patch(
   autorizarPerfil("responsavel"),
   responsavelController.alterarPermissaoCrianca,
 );
+// Alterar o limite diário de tempo de jogo de uma criança vinculada
+router.patch(
+  "/minhas-criancas/:criancaId/limite-tempo",
+  autentificar,
+  autorizarPerfil("responsavel"),
+  responsavelController.alterarLimiteTempoCrianca,
+);
 // rotas temporarelmente  bloquadas
 // // Listar responsáveis
 // router.get("/", responsavelController.getResponsaveis);

@@ -2,6 +2,64 @@
 
 Use Node.js 24 ou superior e as dependências do projeto instaladas.
 
+## Issue #101 — limite de tempo diário por criança
+
+`PATCH /responsaveis/minhas-criancas/:criancaId/limite-tempo` recebe o ID
+do perfil `Crianca._id`, com `{ limiteTempoDiario: inteiroPositivoOuNull }`.
+
+- `limiteTempo.issue101.test.js`: 28 testes HTTP com persistência simulada;
+  Router, JWT, autorização, Controller e Service reais. Confere também filtro
+  de propriedade, atualização restrita e ausência de consultas nas rejeições iniciais.
+- `limiteTempo.issue101.mongo.test.js`: 27 cenários e um agrupador, com
+  Models/queries reais e leitura por conexão independente. Confere persistência,
+  preservação integral das fixtures nas rejeições e alteração somente do limite
+  nos sucessos, inclusive quando outros campos são enviados no body.
+- `helpers/limiteTempoIssue101.js`: servidor HTTP local, JWT temporário e matriz
+  compartilhada de entradas inválidas. Não importa index.js nem carrega ambiente.
+- `erros.issue62.test.js`: fixture e expectativa específicas para o retorno
+  do novo controller, descoberto automaticamente pela regressão existente.
+
+As duas suítes cobrem inteiros positivos, remoção com null, valores negativos,
+zero, frações, strings, campo/body ausente, tipos indevidos, IDs inválidos,
+ausência de JWT, perfil infantil, responsável sem perfil e crianças de outro
+responsável, sem vínculo ou inexistentes. Também verificam que `Usuario._id`
+não substitui `Crianca._id` e que campos extras não alteram outros dados.
+
+Sem MongoDB, sem carregar `.env`:
+
+```powershell
+$env:RUN_ATLAS_TESTS='0'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --test --test-concurrency=1 --test-reporter=tap tests/limiteTempo.issue101.test.js
+node --test --test-concurrency=1 --test-reporter=tap
+```
+
+Integração isolada, usando as guardas de `atlasSeguro.js` e somente
+`MONGO_TEST_URI` apontando para `conectamente_testes`:
+
+```powershell
+$env:RUN_ATLAS_TESTS='1'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/limiteTempo.issue101.mongo.test.js
+```
+
+Os IDs são registrados antes das inserções. A limpeza remove somente fixtures
+da execução e uma segunda conexão confirma zero resíduos. Os JWTs são assinados
+no teste; login/cadastro não fazem parte desta issue.
+
+Execução em 28/10/2026, Node.js 24.22.1: específicos sem banco **28 aprovados,
+0 falhas**; integração **28 aprovados (27 cenários + agrupador), 0 falhas,
+0 ignorados**; suíte completa sem banco **599 aprovados, 0 falhas, 37 ignorados**.
+As integrações opt-in ficam ignoradas na regressão sem banco.
+
+A primeira regressão apontou uma expectativa genérica desatualizada da #62 para
+o novo controller; foi acrescentado seu contrato específico. A tentativa inicial
+de integração no sandbox falhou na conexão antes das fixtures; a execução com
+acesso de rede fora do sandbox passou e confirmou limpeza. Nenhuma alteração
+de produção ou dependência foi necessária.
+
 ## Issue #94 — fase 4 e regressão final
 
 `catalogo.issue94.mongo.test.js` contém 18 cenários e um agrupador. Complementa
