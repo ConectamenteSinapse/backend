@@ -2,6 +2,68 @@
 
 Use Node.js 24 ou superior e as dependências do projeto instaladas.
 
+## Issue #105 — evolução diária do progresso
+
+`GET /criancas/:criancaId/evolucao-diaria` recebe `Usuario._id`, como as
+demais consultas que usam `validarAcessoCrianca`. O histórico referencia
+`Crianca._id`. O retorno é `{ criancaId, evolucao }`, com dias em `YYYY-MM-DD`,
+contadores `totalTentativas`, `acertos`, `erros` e `percentualAcertos` numérico.
+
+- `evolucaoDiaria.issue105.test.js`: 20 cenários HTTP e um agrupador, com
+  Router, middleware JWT, Controller e Service reais; persistência simulada.
+- `evolucaoDiaria.issue105.mongo.test.js`: 21 cenários e um agrupador, com
+  consultas e Models reais, somente em `conectamente_testes` via `atlasSeguro.js`.
+- `helpers/evolucaoDiariaIssue105.js`: servidor local, JWT temporário,
+  fixtures e contratos HTTP comuns às duas execuções.
+
+Cobertura: responsável vinculado, própria criança, agrupamento por dia,
+ordenação, contadores, arredondamento 33.33/66.67, dias com 100%/0%, histórico
+vazio, omissão de dias sem tentativas e virada do mês à meia-noite de São Paulo
+(02:59:59.999Z/03:00:00Z). Inclui identificador inválido, inexistente, ausência
+de JWT, responsável não vinculado, outra criança, isolamento de históricos e
+distinção entre IDs de usuário e perfil infantil.
+
+As fixtures inserem históricos diretamente, com referências ObjectId sintéticas
+para catálogo/personagens; a consulta não faz populate desses relacionamentos.
+O fluxo de registrar respostas e o login possuem suítes próprias. Não se importa
+`index.js` nem se carrega `.env` automaticamente no teste.
+
+A integração compara hashes BSON dos documentos completos de todas as coleções
+do banco de testes, por conexão independente, antes/depois das requisições.
+Também monitora ausência de comandos de escrita nas consultas. Registra IDs
+antes das inserções, limpa somente esses IDs e compara o estado final com o
+estado anterior às fixtures, confirmando zero resíduos e preservação dos dados
+preexistentes. Não acessa `MONGO_URI` nem o banco de desenvolvimento.
+
+Execução sem banco:
+
+```powershell
+$env:RUN_ATLAS_TESTS='0'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --test --test-concurrency=1 --test-reporter=tap tests/evolucaoDiaria.issue105.test.js
+node --test --test-concurrency=1 --test-reporter=tap
+```
+
+Integração isolada, sem outra suíte usando o banco simultaneamente:
+
+```powershell
+$env:RUN_ATLAS_TESTS='1'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/evolucaoDiaria.issue105.mongo.test.js
+```
+
+Resultados em 29/10/2026, Node.js 24.22.1: específicos sem banco **21 aprovados,
+0 reprovados, 0 ignorados**; MongoDB **22 aprovados, 0 reprovados, 0 ignorados**;
+regressão completa sem banco **644 aprovados, 0 reprovados, 39 ignorados**.
+Contagens incluem agrupadores; os específicos já estão incluídos na regressão.
+Os ignorados da regressão são integrações opt-in. A primeira tentativa MongoDB
+falhou na conexão dentro do sandbox, antes de inserir fixtures; a repetição com
+acesso de rede passou e confirmou preservação e limpeza. Nenhuma falha de
+implementação encontrada nos cenários exercitados. Nenhum código de produção,
+dependência ou `.env` foi alterado; sem commit/push.
+
 ## Issue #103 — desvinculação de criança do responsável
 
 `DELETE /responsaveis/minhas-criancas/:criancaId/vinculo` recebe `Crianca._id`,
