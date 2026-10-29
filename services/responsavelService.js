@@ -222,7 +222,45 @@ const alterarLimiteTempoCrianca = async (
 
   return criancaAtualizada;
 };
+// Desvincular uma criança do responsável autenticado
+const desvincularCrianca = async (usuarioId, criancaId) => {
+  // Validar os identificadores
+  validarId(usuarioId);
+  validarId(criancaId);
 
+  // Buscar o perfil do responsável autenticado
+  const responsavel = await ResponsavelModel.findOne({
+    usuarioId: usuarioId,
+  });
+
+  if (!responsavel) {
+    throw new Error("RESPONSAVEL_NAO_ENCONTRADO");
+  }
+
+  // Desvincular somente uma criança pertencente ao responsável
+  const criancaAtualizada = await CriancaModel.findOneAndUpdate(
+    {
+      _id: criancaId,
+      responsavelId: responsavel._id,
+    },
+    {
+      $set: {
+        responsavelId: null,
+        permissaoAtiva: false,
+      },
+    },
+    {
+      new: true,
+      runValidators: true,
+    },
+  );
+
+  if (!criancaAtualizada) {
+    throw new Error("CRIANCA_NAO_VINCULADA");
+  }
+
+  return criancaAtualizada;
+};
 export default {
   getResponsaveis,
   getResponsavelById,
@@ -232,4 +270,5 @@ export default {
   vincularCrianca,
   alterarPermissaoCrianca,
   alterarLimiteTempoCrianca,
+  desvincularCrianca,
 };

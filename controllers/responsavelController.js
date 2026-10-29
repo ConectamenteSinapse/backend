@@ -237,6 +237,26 @@ const vincularCrianca = async (req, res) => {
   }
 };
 
+// Desvincular uma criança do responsável autenticado
+const desvincularCrianca = async (req, res) => {
+  try {
+    // Identificar o responsável autenticado pelo JWT
+    const usuarioId = req.usuario.id;
+
+    // Obter o ID do perfil da criança pela URL
+    const criancaId = req.params.criancaId;
+
+    // Executar a desvinculação no Service
+    await responsavelService.desvincularCrianca(usuarioId, criancaId);
+
+    return res.status(200).json({
+      mensagem: "Criança desvinculada com sucesso",
+    });
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
 export default {
   getResponsaveis,
   getResponsavelById,
@@ -246,4 +266,5 @@ export default {
   vincularCrianca,
   alterarPermissaoCrianca,
   alterarLimiteTempoCrianca,
+  desvincularCrianca,
 };
