@@ -41,6 +41,13 @@ router.patch(
   autorizarPerfil("responsavel"),
   responsavelController.alterarLimiteTempoCrianca,
 );
+// Desvincular uma criança do responsável autenticado
+router.delete(
+  "/minhas-criancas/:criancaId/vinculo",
+  autentificar,
+  autorizarPerfil("responsavel"),
+  responsavelController.desvincularCrianca,
+);
 // rotas temporarelmente  bloquadas
 // // Listar responsáveis
 // router.get("/", responsavelController.getResponsaveis);

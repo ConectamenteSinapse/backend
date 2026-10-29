@@ -2,6 +2,66 @@
 
 Use Node.js 24 ou superior e as dependências do projeto instaladas.
 
+## Issue #103 — desvinculação de criança do responsável
+
+`DELETE /responsaveis/minhas-criancas/:criancaId/vinculo` recebe `Crianca._id`,
+exige JWT de responsável e retorna HTTP 200 com a confirmação. A operação
+altera apenas `responsavelId: null` e `permissaoAtiva: false`.
+
+- `desvinculacao.issue103.test.js`: 17 testes HTTP, com Router, middlewares,
+  Controller e Service reais e persistência simulada. Verifica filtro de
+  propriedade, atualização restrita e listagem após desvincular.
+- `desvinculacao.issue103.mongo.test.js`: 15 cenários e um agrupador, com
+  persistência e populate reais. Uma conexão independente compara documentos
+  completos de usuários, responsáveis e crianças, antes e depois das requisições.
+- `helpers/desvinculacaoIssue103.js`: servidor HTTP local, JWT temporário e
+  dados comuns. Não importa index.js nem carrega `.env` automaticamente.
+- `erros.issue62.test.js`: contratos específicos de Controller e DELETE HTTP
+  da desvinculação, preservando os testes de HTTP 204 das outras rotas DELETE.
+
+A cobertura inclui sucesso com permissão ativa/inativa e limite numérico/null,
+preservação do usuário e demais campos, saída da listagem, preservação das outras
+crianças, criança de outro responsável, já desvinculada, inexistente e segunda
+tentativa após sucesso. Inclui IDs inválidos na URL/JWT, uso indevido de
+`Usuario._id`, responsável sem perfil, ausência de JWT e perfis não autorizados.
+Campos enviados no body não podem alterar outros dados.
+
+Execução sem banco, sem carregar `.env`:
+
+```powershell
+$env:RUN_ATLAS_TESTS='0'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --test --test-concurrency=1 --test-reporter=tap tests/desvinculacao.issue103.test.js
+node --test --test-concurrency=1 --test-reporter=tap
+```
+
+Integração isolada, somente em `conectamente_testes` via `MONGO_TEST_URI`,
+respeitando todas as guardas de `atlasSeguro.js`:
+
+```powershell
+$env:RUN_ATLAS_TESTS='1'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/desvinculacao.issue103.mongo.test.js
+```
+
+Fixtures possuem IDs registrados antes das inserções. A limpeza usa somente
+esses IDs e confirma zero resíduos por conexão independente. JWTs são assinados
+com segredo temporário no teste; o fluxo de login possui cobertura própria.
+
+Resultados em 28/10/2026, Node.js 24.22.1: específicos sem banco **17 aprovados,
+0 reprovados, 0 ignorados**; integração **16 aprovados (15 cenários + agrupador),
+0 reprovados, 0 ignorados**; suíte completa sem banco **620 aprovados,
+0 reprovados, 38 ignorados**. Os específicos sem banco estão incluídos na
+regressão; as integrações opt-in ficam ignoradas nessa execução.
+
+A regressão inicial revelou a suposição antiga da #62 de que todo DELETE
+retornaria 204 e usaria perfil infantil. Foi acrescentado o contrato específico
+da nova rota (200 e perfil responsável), também no teste genérico do Controller.
+A integração emitiu aviso do Mongoose sobre a opção `new: true` obsoleta,
+sem falhas. Código de produção e dependências permaneceram intactos.
+
 ## Issue #101 — limite de tempo diário por criança
 
 `PATCH /responsaveis/minhas-criancas/:criancaId/limite-tempo` recebe o ID

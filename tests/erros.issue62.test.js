@@ -110,6 +110,7 @@ for (const { arquivo, funcoes } of grupos) {
       else if (nome === "registrarResposta") assert.deepEqual(resposta.body, { acertou: false, tentativa: 2, pontuacaoGanha: 0, dificuldade: "facil" });
       else if (nome === "alterarPermissaoCrianca") assert.deepEqual(resposta.body, { mensagem: "Permissão atualizada com sucesso", permissaoAtiva: false });
       else if (nome === "alterarLimiteTempoCrianca") assert.deepEqual(resposta.body, { mensagem: "Limite diário atualizado com sucesso", limiteTempoDiario: 30 });
+      else if (nome === "desvincularCrianca") assert.deepEqual(resposta.body, { mensagem: "Criança desvinculada com sucesso" });
       else if (nome === "loginUsuario") {
         assert.equal(jwt.verify(resposta.body.token, process.env.JWT_SECRET).id, id);
         assert.equal(resposta.body.usuario.senha, undefined);
@@ -320,7 +321,16 @@ test("#62 HTTP: routers reais, autenticação, autorização e DELETE sem corpo"
         const resposta = await fetch(base + caminho, { method: metodo });
         contrato({ statusCode: resposta.status, body: await resposta.json() }, 401);
       });
-      if (metodo === "DELETE") await t.test(`${caminho}: 204 real sem bytes`, async () => {
+      const desvinculacao = arquivo === "responsavelRoutes.js" &&
+        rota.path === "/minhas-criancas/:criancaId/vinculo";
+      if (metodo === "DELETE" && desvinculacao) await t.test(`${caminho}: 200 e confirmação da desvinculação`, async () => {
+        const tokenResponsavel = jwt.sign({ id, perfil: "responsavel" }, process.env.JWT_SECRET);
+        const resposta = await fetch(base + caminho, { method: metodo, headers: { Authorization: `Bearer ${tokenResponsavel}` } });
+        assert.equal(resposta.status, 200);
+        assert.match(resposta.headers.get("content-type"), /application\/json/);
+        assert.deepEqual(await resposta.json(), { mensagem: "Criança desvinculada com sucesso" });
+      });
+      if (metodo === "DELETE" && !desvinculacao) await t.test(`${caminho}: 204 real sem bytes`, async () => {
         const resposta = await fetch(base + caminho, { method: metodo, headers: { Authorization: `Bearer ${token}` } });
         assert.equal(resposta.status, 204); assert.equal(await resposta.text(), "");
         assert.equal(resposta.headers.get("content-type"), null);
