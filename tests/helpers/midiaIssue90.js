@@ -12,7 +12,7 @@ export function dadosTarefa(valores = {}) {
   return {
     _id: id(), titulo: "Tarefa fictícia #90", enunciado: "Escolha uma alternativa",
     descricao: "Fixture exclusiva de teste", comodoId: id(), imagemObjeto: "objeto.png",
-    posicao: { x: 0, y: 0, largura: 10, altura: 10 }, ordem: 1, dificuldade: "facil",
+    posicao: { x: 0, y: 0, largura: 10, altura: 10 }, ordem: 1,
     ...valores,
   };
 }

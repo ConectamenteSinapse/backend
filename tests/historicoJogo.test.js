@@ -9,7 +9,6 @@ test(
   async (t) => {
     const jogo = await prepararJogo(t);
     const primeira = jogo.tarefas[0];
-    const ultima = jogo.tarefas.at(-1);
 
     await t.test("Sem autenticação retorna HTTP 401", async () => {
       const { status } = await jogo.responder(primeira, "facil", true, false);
@@ -44,6 +43,9 @@ test(
     const dificuldades = ["facil", "medio", "dificil"];
 
     for (const [indice, dificuldade] of dificuldades.entries()) {
+      const atividades = jogo.tarefas;
+      const primeira = atividades[0];
+      const ultima = atividades.at(-1);
       await t.test(
         `${dificuldade}: impede pular a ordem das tarefas`,
         async () => {
@@ -79,9 +81,9 @@ test(
       );
 
       await t.test(
-        `${dificuldade}: acertos concedem ${indice + 1} estrela(s) e acumulam no perfil`,
+        `${dificuldade}: acertos concedem ${indice + 1} estrela(s) e acumulam na partida`,
         async () => {
-          for (const [posicao, tarefa] of jogo.tarefas.entries()) {
+          for (const [posicao, tarefa] of atividades.entries()) {
             const { status, dados } = await jogo.responder(tarefa, dificuldade);
             assert.equal(status, 201);
             assert.deepEqual(dados, {

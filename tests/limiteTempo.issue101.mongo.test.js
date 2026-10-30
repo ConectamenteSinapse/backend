@@ -90,12 +90,13 @@ test("#101 MongoDB: limite diário por HTTP e leitura independente", {
     const alvo = esperado.Crianca.find(doc => doc._id === String(crianca._id));
     assert.ok(alvo);
     alvo.limiteTempoDiario = limiteTempoDiario;
+    alvo.sessaoJogoVersao = (alvo.sessaoJogoVersao ?? 0) + 1;
     assert.deepEqual(await patch({ ...extras, limiteTempoDiario }), {
       status: 200,
       dados: { mensagem: "Limite diário atualizado com sucesso", limiteTempoDiario },
     });
     assert.deepEqual(await estado(), esperado,
-      "Somente o limite da criança vinculada pode mudar, preservando tipos e campos omitidos");
+      "Somente limite e versão da criança vinculada podem mudar, preservando consumo e demais campos");
   }
   async function rejeitar(body, opcoes, status, dados) {
     const antes = await estado();

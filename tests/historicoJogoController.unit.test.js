@@ -11,7 +11,18 @@ const bodyValido = {
   tarefaId: "333333333333333333333333",
   respostaEscolhidaId: "444444444444444444444444",
   dificuldade: "facil",
+  sessaoId: "sessao-controller-issue107",
 };
+
+test("#107 Controller preserva a dificuldade da tentativa, independente do catálogo", async t => {
+  t.mock.method(service, "registrarResposta", async () => {
+    return { acertou: true, tentativa: 1, pontuacaoGanha: 3, dificuldade: "dificil" };
+  });
+  assert.deepEqual(await executar({ ...bodyValido, dificuldade: "dificil" }), {
+    status: 201,
+    dados: { acertou: true, tentativa: 1, pontuacaoGanha: 3, dificuldade: "dificil" },
+  });
+});
 
 async function executar(body) {
   const resposta = {
@@ -31,7 +42,7 @@ async function executar(body) {
   return { status: resposta.codigo, dados: resposta.dados };
 }
 
-test("Controller envia os seis parâmetros e preserva o contrato HTTP 201", async (t) => {
+test("Controller envia os sete parâmetros e preserva o contrato HTTP 201", async (t) => {
   const chamada = t.mock.method(service, "registrarResposta", async () => ({
     acertou: true,
     tentativa: 2,
@@ -55,6 +66,7 @@ test("Controller envia os seis parâmetros e preserva o contrato HTTP 201", asyn
     bodyValido.tarefaId,
     bodyValido.respostaEscolhidaId,
     bodyValido.dificuldade,
+    bodyValido.sessaoId,
   ]);
 });
 

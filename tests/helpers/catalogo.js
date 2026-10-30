@@ -47,13 +47,13 @@ export async function criarCatalogo(session, ids, identificador = "") {
       posicao: { x: 0, y: 0, largura: 1, altura: 1 },
       ordem,
       ativo,
-      dificuldade: "facil",
     };
     tarefas.push(tarefa);
     return tarefa;
   }
   const [quarto, banheiro, cozinha, inativo, vazio, soInativas] = comodos;
   for (const comodo of [quarto, banheiro, cozinha]) {
+    // Mesmos IDs e mesma ordem nas três dificuldades da partida.
     comodo.tarefas = [novaTarefa(comodo._id, 1), novaTarefa(comodo._id, 2)];
   }
   inativo.tarefa = novaTarefa(inativo._id, 1);

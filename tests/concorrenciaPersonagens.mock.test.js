@@ -26,16 +26,32 @@ function preparar(t, { correta = true } = {}) {
   const criancaId = id();
   const perfil = { _id: id(), criancaId, status: "ativo", estrelasTotal: 7 };
   const partida = { _id: id(), perfilJogoId: perfil._id, estrelasTotal: 7 };
-  const tarefa = { _id: id(), comodoId: id(), ativo: true, ordem: 1 };
+  const tarefa = { _id: id(), comodoId: id(), ativo: true, ordem: 1, dificuldade: "facil" };
   const resposta = { _id: id(), tarefaId: tarefa._id, correta };
   const eventos = [];
   const sessoes = [];
   let antesReserva = async () => {};
   let aposCallback = async () => {};
-  t.mock.method(Crianca, "findOne", async () => ({
-    _id: criancaId,
-    permissaoAtiva: true,
+  const infantil = { _id: criancaId, usuarioId, permissaoAtiva: true, limiteTempoDiario: null,
+    tempoUsadoHoje: 0, dataReferenciaTempo: null, sessaoJogoId: "sessao-protocolo-107",
+    sessaoJogoSalvoId: partida._id, sessaoJogoEstado: "ativa", sessaoJogoVersao: 0,
+    sessaoJogoContabilizadoEm: new Date(), sessaoJogoExpiraEm: new Date(Date.now() + 30000) };
+  t.mock.method(Crianca, "findOne", () => ({
+    then: (resolve, reject) => Promise.resolve(Crianca.hydrate(infantil)).then(resolve, reject),
+    session: session => {
+      assert.ok(sessoes.includes(session));
+      return Promise.resolve(Crianca.hydrate(infantil));
+    },
   }));
+  // Este adapter verifica o protocolo e a sessão recebida, sem reproduzir
+  // isolamento/CAS do servidor. A concorrência real é coberta em MongoDB.
+  t.mock.method(Crianca, "findOneAndUpdate", async (filtro, update, opts) => {
+    assert.equal(filtro.sessaoJogoId, infantil.sessaoJogoId);
+    assert.ok(sessoes.includes(opts.session));
+    Object.assign(infantil, update.$set);
+    infantil.sessaoJogoVersao++;
+    return Crianca.hydrate(infantil);
+  });
   t.mock.method(Tarefa, "findById", async () => tarefa);
   t.mock.method(Resposta, "findOne", async () => resposta);
   t.mock.method(Comodo, "findById", async () => ({
@@ -164,6 +180,7 @@ function preparar(t, { correta = true } = {}) {
         tarefa._id,
         resposta._id,
         "facil",
+        "sessao-protocolo-107",
       ),
     arquivar: () => arquivarPersonagem(usuarioId, perfil._id),
     pausarReserva: (callback) => {

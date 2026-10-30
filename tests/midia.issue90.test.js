@@ -117,14 +117,14 @@ for (const spec of especificacoes) {
     await doc.validate();
     for (const campo of spec.campos) assert.equal(doc[campo], undefined);
     const obrigatorios = spec.Model === Tarefa
-      ? ["titulo", "enunciado", "descricao", "comodoId", "imagemObjeto", "ordem", "dificuldade"]
+      ? ["titulo", "enunciado", "descricao", "comodoId", "imagemObjeto", "ordem"]
       : ["tarefaId", "texto", "correta", "ordem"];
     for (const campo of obrigatorios) {
       const invalido = new spec.Model({ ...base, [campo]: undefined });
       await assert.rejects(invalido.validate(), erro => Boolean(erro.errors[campo]));
     }
     if (spec.Model === Tarefa) {
-      await assert.rejects(new Tarefa({ ...base, dificuldade: "impossivel" }).validate(), { name: "ValidationError" });
+      assert.equal(Tarefa.schema.path("dificuldade"), undefined);
       await assert.rejects(new Tarefa({ ...base, posicao: { x: 0 } }).validate(), { name: "ValidationError" });
     } else assert.equal(doc.correta, false);
   });

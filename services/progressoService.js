@@ -1,6 +1,11 @@
 import HistoricoJogoModel from "../models/historicoJogoModel.js";
 import { validarAcessoCrianca } from "./validarAcessoCriancaService.js";
 import { buscarJogoSalvoPorId } from "./jogoSalvoService.js";
+import ComodoModel from "../models/comodoModel.js";
+import {
+  verificarDificuldadeConcluida,
+  verificarComodoDesbloqueado,
+} from "./validarProgressaoService.js";
 
 // Consultar o progresso de uma criança
 const consultarProgresso = async (criancaId, usuarioAutenticado) => {
@@ -103,6 +108,53 @@ const consultarProgressoJogo = async (usuarioId, jogoSalvoId) => {
 
   const tarefas = Array.from(tarefasAgrupadas.values());
 
+  // Buscar os cômodos ativos na ordem do jogo
+  const comodosAtivos = await ComodoModel.find({
+    ativo: true,
+  })
+    .sort({ ordem: 1 })
+    .lean();
+
+  const comodos = [];
+
+  // Determinar o estado de cada cômodo nesta partida
+  for (const comodo of comodosAtivos) {
+    let concluido = true;
+
+    // Um cômodo exige a conclusão das três dificuldades
+    for (const dificuldade of ["facil", "medio", "dificil"]) {
+      const dificuldadeConcluida = await verificarDificuldadeConcluida(
+        jogoSalvo._id,
+        comodo._id,
+        dificuldade,
+      );
+
+      if (!dificuldadeConcluida) {
+        concluido = false;
+        break;
+      }
+    }
+
+    let estado;
+
+    if (concluido) {
+      estado = "concluido";
+    } else {
+      const desbloqueado = await verificarComodoDesbloqueado(
+        jogoSalvo._id,
+        comodo,
+      );
+
+      estado = desbloqueado ? "disponivel" : "bloqueado";
+    }
+
+    comodos.push({
+      comodoId: comodo._id,
+      nome: comodo.nome,
+      estado,
+    });
+  }
+
   return {
     jogoSalvoId: jogoSalvo._id,
     estrelasTotal: jogoSalvo.estrelasTotal,
@@ -114,6 +166,7 @@ const consultarProgressoJogo = async (usuarioId, jogoSalvoId) => {
       ultimaInteracao: historicos[0]?.dataHora ?? null,
     },
     tarefas,
+    comodos,
   };
 };
 // Consultar a evolução diária do progresso da criança

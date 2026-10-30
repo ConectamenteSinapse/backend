@@ -6,6 +6,13 @@ import {
   excluirJogoSalvo,
 } from "../services/jogoSalvoService.js";
 
+import {
+  iniciarSessaoJogo,
+  renovarSessaoJogo,
+  pausarSessaoJogo,
+  encerrarSessaoJogo,
+} from "../services/tempoJogoService.js";
+
 // Tratamento de erros dos jogos salvos
 const tratarErro = (error, res) => {
   if (
@@ -45,6 +52,47 @@ const tratarErro = (error, res) => {
       erro: true,
       mensagem: "Conclua as tarefas anteriores para continuar!",
       codigo: "TAREFA_FORA_DA_ORDEM",
+    });
+  }
+  if (
+    error.message === "SESSAO_INVALIDA" ||
+    error.message === "SESSAO_INATIVA" ||
+    error.message === "SESSAO_EXPIRADA"
+  ) {
+    return res.status(409).json({
+      erro: true,
+      mensagem: "A sessão de jogo não está disponível",
+      codigo: error.message,
+    });
+  }
+
+  if (error.message === "SESSAO_JA_ATIVA") {
+    return res.status(409).json({
+      erro: true,
+      mensagem: "Já existe uma sessão de jogo ativa",
+      codigo: error.message,
+    });
+  }
+
+  if (error.message === "CONFLITO_SESSAO") {
+    return res.status(409).json({
+      erro: true,
+      mensagem: "Não foi possível atualizar a sessão",
+      codigo: error.message,
+    });
+  }
+
+  if (
+    error.message === "LIMITE_TEMPO_ATINGIDO" ||
+    error.message === "PERMISSAO_INATIVA"
+  ) {
+    return res.status(403).json({
+      erro: true,
+      mensagem:
+        error.message === "LIMITE_TEMPO_ATINGIDO"
+          ? "O limite de tempo diário foi atingido"
+          : "A permissão para jogar está inativa",
+      codigo: error.message,
     });
   }
   console.error("Erro no gerenciamento de jogos salvos:", error);
@@ -105,10 +153,64 @@ const removerJogoSalvo = async (req, res) => {
     return tratarErro(error, res);
   }
 };
+
+const iniciarSessao = async (req, res) => {
+  try {
+    const resultado = await iniciarSessaoJogo(req.usuario.id, req.params.id);
+
+    return res.status(201).json(resultado);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+const renovarSessao = async (req, res) => {
+  try {
+    const resultado = await renovarSessaoJogo(
+      req.usuario.id,
+      req.body?.sessaoId,
+    );
+
+    return res.status(200).json(resultado);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+const pausarSessao = async (req, res) => {
+  try {
+    const resultado = await pausarSessaoJogo(
+      req.usuario.id,
+      req.body?.sessaoId,
+    );
+
+    return res.status(200).json(resultado);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
+const encerrarSessao = async (req, res) => {
+  try {
+    const resultado = await encerrarSessaoJogo(
+      req.usuario.id,
+      req.body?.sessaoId,
+    );
+
+    return res.status(200).json(resultado);
+  } catch (error) {
+    return tratarErro(error, res);
+  }
+};
+
 export {
   cadastrarJogoSalvo,
   obterJogosSalvos,
   obterJogoSalvoPorId,
   editarJogoSalvo,
   removerJogoSalvo,
+  iniciarSessao,
+  renovarSessao,
+  pausarSessao,
+  encerrarSessao,
 };

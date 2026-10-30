@@ -32,7 +32,7 @@ function concluir(
   dificuldades = ["facil", "medio", "dificil"],
 ) {
   for (const tarefa of j.tarefas[j.comodos.indexOf(comodo)]) {
-    for (const dificuldade of dificuldades)
+    for (const dificuldade of dificuldades) {
       j.inserir(Historico, {
         ...j.bodyResposta(jogo, tarefa, true, dificuldade),
         criancaId: j.crianca._id,
@@ -41,6 +41,7 @@ function concluir(
         tentativa: 1,
         pontuacaoGanha: 1,
       });
+    }
   }
 }
 
@@ -356,7 +357,8 @@ for (const [dificuldade, estrelas] of [
         j.comodos[0],
         dificuldade === "medio" ? ["facil"] : ["facil", "medio"],
       );
-    const res = await j.responder(jogo, j.tarefas[0][0], true, dificuldade);
+    const tarefa = j.tarefas[0][0];
+    const res = await j.responder(jogo, tarefa, true, dificuldade);
     assert.equal(res.status, 201);
     assert.equal(res.dados.tentativa, 1);
     assert.equal(res.dados.pontuacaoGanha, estrelas);
@@ -455,7 +457,9 @@ test("#73: resposta rejeita partida de outro personagem e criança sem permissã
   const jogo = j.novaPartida({ perfilJogoId: id() });
   assert.equal((await j.responder(jogo)).status, 404);
   j.dados.get(Crianca).get(String(j.crianca._id)).permissaoAtiva = false;
-  assert.equal((await j.responder(jogo)).status, 403);
+  // A permissão agora é relida na transação; isola esse bloqueio usando
+  // partida própria, em vez de combinar com o erro anterior de propriedade.
+  assert.equal((await j.responder(j.novaPartida())).status, 403);
 });
 
 for (const correta of [true, false]) {
@@ -587,7 +591,7 @@ test("#73 MOCK: sessão e histórico usam a mesma transação; falha no insert e
   assert.equal((await j.responder(jogo)).status, 500);
   assert.ok(j.sessoes[0].encerrada);
   const escritas = j.eventos.filter((e) => e.op === "findOneAndUpdate");
-  assert.equal(escritas.length, 2);
+  assert.equal(escritas.length, 3); // Consumo, personagem e partida.
   assert.ok(escritas.every((e) => e.opcoes.session === j.sessoes[0]));
   // Não afirma rollback: o mock não implementa transações de banco.
 });
@@ -647,7 +651,7 @@ test("#73: endpoint de respostas valida campos obrigatórios, IDs e dificuldade"
     delete incompleto[campo];
     assert.equal(
       (await j.chamar("POST", "/historico-jogo/responder", incompleto)).status,
-      400,
+      campo === "sessaoId" ? 409 : 400,
     );
   }
   for (const campo of [
@@ -707,12 +711,14 @@ test("#73 MOCK: respostas paralelas usam sessões distintas e reservam a partida
     const eventos = j.eventos.filter((e) => e.opcoes?.session === session);
     assert.deepEqual(
       eventos.map((e) => e.op),
-      ["findOneAndUpdate", "findOneAndUpdate", "countDocuments", "create"],
+      ["findOne", "findOneAndUpdate", "findOneAndUpdate", "findOneAndUpdate", "countDocuments", "create"],
     );
-    assert.equal(eventos[0].model, Perfil);
-    assert.equal(eventos[1].model, Jogo);
-    igual(eventos[2].filtro.jogoSalvoId, jogo._id);
-    assert.equal(eventos[2].filtro.dificuldade, "facil");
+    assert.equal(eventos[0].model, Crianca);
+    assert.equal(eventos[1].model, Crianca);
+    assert.equal(eventos[2].model, Perfil);
+    assert.equal(eventos[3].model, Jogo);
+    igual(eventos[4].filtro.jogoSalvoId, jogo._id);
+    assert.equal(eventos[4].filtro.dificuldade, "facil");
     assert.ok(session.encerrada);
   }
   // Sem asserts de tentativas únicas ou rollback: exigem locks reais do MongoDB.

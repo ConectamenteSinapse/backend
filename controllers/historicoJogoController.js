@@ -67,6 +67,27 @@ const tratarErro = (error, res) => {
       codigo: "COMODO_INDISPONIVEL",
     });
   }
+  if (
+    error.message === "SESSAO_INVALIDA" ||
+    error.message === "SESSAO_INATIVA" ||
+    error.message === "SESSAO_EXPIRADA" ||
+    error.message === "SESSAO_JA_ATIVA" ||
+    error.message === "CONFLITO_SESSAO"
+  ) {
+    return res.status(409).json({
+      erro: true,
+      mensagem: "A sessão de jogo não está disponível",
+      codigo: error.message,
+    });
+  }
+
+  if (error.message === "LIMITE_TEMPO_ATINGIDO") {
+    return res.status(403).json({
+      erro: true,
+      mensagem: "O limite diário de jogo foi atingido",
+      codigo: "LIMITE_TEMPO_ATINGIDO",
+    });
+  }
   console.error(error);
   return res
     .status(500)
@@ -90,6 +111,7 @@ const registrarResposta = async (req, res) => {
     const tarefaId = req.body.tarefaId;
     const respostaEscolhidaId = req.body.respostaEscolhidaId;
     const dificuldade = req.body.dificuldade;
+    const sessaoId = req.body.sessaoId;
     // Verificar se os campos foram informados
     if (
       !perfilJogoId ||
@@ -118,6 +140,7 @@ const registrarResposta = async (req, res) => {
       tarefaId,
       respostaEscolhidaId,
       dificuldade,
+      sessaoId,
     );
     // Retornar somente os dados necessários ao jogo
     return res.status(201).json({

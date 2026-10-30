@@ -11,6 +11,7 @@ import {
   verificarDificuldadeDesbloqueada,
   verificarTarefaDesbloqueada,
 } from "./validarProgressaoService.js";
+import { reconciliarSessaoParaResposta } from "./tempoJogoService.js";
 
 // Registrar a resposta escolhida pela criança
 const registrarResposta = async (
@@ -20,6 +21,7 @@ const registrarResposta = async (
   tarefaId,
   respostaEscolhidaId,
   dificuldade,
+  sessaoId,
 ) => {
   // Validar o ID do usuário autenticado
   if (!mongoose.Types.ObjectId.isValid(usuarioId)) {
@@ -39,6 +41,9 @@ const registrarResposta = async (
   if (!dificuldadesValidas.includes(dificuldade)) {
     throw new Error("DIFICULDADE_INVALIDA");
   }
+  if (typeof sessaoId !== "string" || !sessaoId.trim()) {
+    throw new Error("SESSAO_INVALIDA");
+  }
   // Buscar o perfil infantil associado ao usuário autenticado
   const crianca = await CriancaModel.findOne({
     usuarioId: usuarioId,
@@ -46,11 +51,6 @@ const registrarResposta = async (
 
   if (!crianca) {
     throw new Error("CRIANCA_NAO_ENCONTRADA");
-  }
-
-  // Verificar se a criança possui autorização para jogar
-  if (!crianca.permissaoAtiva) {
-    throw new Error("PERMISSAO_INATIVA");
   }
 
   // Validar os IDs da tarefa e da resposta
@@ -162,9 +162,23 @@ const registrarResposta = async (
   const session = await mongoose.startSession();
 
   try {
-    let historico;
+    const resultado = await session.withTransaction(async () => {
+      // Validar a sessão e contabilizar o tempo
+      const validacaoTempo = await reconciliarSessaoParaResposta(
+        crianca._id,
+        usuarioId,
+        jogoSalvo._id,
+        sessaoId,
+        session,
+      );
 
-    await session.withTransaction(async () => {
+      // Se o tempo acabou, não registrar resposta nem estrelas
+      if (validacaoTempo.codigoBloqueio) {
+        return {
+          codigoBloqueio: validacaoTempo.codigoBloqueio,
+        };
+      }
+
       // Confirmar e reservar o personagem ativo nesta transação
       const perfilAtivo = await PerfilJogoModel.findOneAndUpdate(
         {
@@ -247,10 +261,16 @@ const registrarResposta = async (
         { session },
       );
 
-      historico = historicosCriados[0];
+      return {
+        historico: historicosCriados[0],
+      };
     });
 
-    return historico;
+    if (resultado.codigoBloqueio) {
+      throw new Error(resultado.codigoBloqueio);
+    }
+
+    return resultado.historico;
   } finally {
     await session.endSession();
   }

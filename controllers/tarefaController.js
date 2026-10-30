@@ -62,8 +62,7 @@ const postTarefa = async (req, res) => {
       !dadosTarefa.comodoId ||
       !dadosTarefa.imagemObjeto ||
       !dadosTarefa.posicao ||
-      dadosTarefa.ordem == null ||
-      !dadosTarefa.dificuldade
+      dadosTarefa.ordem == null
     ) {
       return res
         .status(400)
@@ -89,8 +88,7 @@ const putTarefaById = async (req, res) => {
       !dadosTarefa.comodoId ||
       !dadosTarefa.imagemObjeto ||
       !dadosTarefa.posicao ||
-      dadosTarefa.ordem == null ||
-      !dadosTarefa.dificuldade
+      dadosTarefa.ordem == null
     ) {
       return res
         .status(400)

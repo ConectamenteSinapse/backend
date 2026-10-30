@@ -16,7 +16,8 @@ import Comodo from "../../models/comodoModel.js";
 import historicoRoutes from "../../routes/historicoJogoRoutes.js";
 import comodoRoutes from "../../routes/comodoRoutes.js";
 import { criarCatalogo } from "./catalogo.js";
-import { confirmarModels } from "./atlasSeguro.js";
+import { confirmarModels, abrirConexaoTeste } from "./atlasSeguro.js";
+import { garantirSessaoResposta } from "./sessaoRespostaMongo.js";
 import { conectarBancoTeste } from "./bancoTeste.js";
 
 export async function prepararJogo(t) {
@@ -83,35 +84,40 @@ export async function prepararJogo(t) {
           }
         }
         if (mongoose.connection.readyState === 1) confirmarModels(mongoose.connection);
-        // Fora da transação, confirma que nada foi persistido.
-        if (perfilId) {
-          assert.equal(await Usuario.countDocuments({ _id: usuarioId }), 0);
-          assert.equal(await Crianca.countDocuments({ _id: criancaId }), 0);
-          assert.equal(await Perfil.countDocuments({ _id: perfilId }), 0);
-          assert.equal(
-            await Historico.countDocuments({ perfilJogoId: perfilId }),
-            0,
-          );
-        }
-        for (const [model, lista] of [
-          [Usuario, ids.usuarios],
-          [Crianca, ids.criancas],
-          [Perfil, ids.perfis],
-          [JogoSalvo, ids.partidas],
-          [Comodo, ids.comodos],
-          [Tarefa, ids.tarefas],
-          [Resposta, ids.respostas],
-        ]) {
-          if (lista.length)
+        // Fora da transação, outra conexão confirma o descarte de TODAS as fixtures.
+        const leitura = await abrirConexaoTeste({ leitura: true });
+        try {
+          assert.notEqual(leitura.getClient(), mongoose.connection.getClient());
+          if (perfilId) {
+            assert.equal(await Usuario.countDocuments({ _id: usuarioId }), 0);
+            assert.equal(await Crianca.countDocuments({ _id: criancaId }), 0);
+            assert.equal(await Perfil.countDocuments({ _id: perfilId }), 0);
             assert.equal(
-              await model.countDocuments({ _id: { $in: lista } }),
+              await Historico.countDocuments({ perfilJogoId: perfilId }),
               0,
             );
-        }
-        assert.equal(
-          await Historico.countDocuments({ perfilJogoId: { $in: ids.perfis } }),
-          0,
-        );
+          }
+          for (const [model, lista] of [
+            [Usuario, ids.usuarios],
+            [Crianca, ids.criancas],
+            [Perfil, ids.perfis],
+            [JogoSalvo, ids.partidas],
+            [Comodo, ids.comodos],
+            [Tarefa, ids.tarefas],
+            [Resposta, ids.respostas],
+          ]) {
+            if (lista.length)
+              assert.equal(
+                await leitura.db.collection(model.collection.name).countDocuments({ _id: { $in: lista } }),
+                0,
+              );
+          }
+          assert.equal(
+            await leitura.db.collection(Historico.collection.name).countDocuments({ perfilJogoId: { $in: ids.perfis } }),
+            0,
+          );
+          t.diagnostic("Transação externa descartada: zero resíduos por conexão independente");
+        } finally { await leitura.close(); }
       } finally {
         await mongoose.disconnect();
       }
@@ -166,9 +172,9 @@ export async function prepararJogo(t) {
   // Somente no teste: leituras reais do Service usam a transação externa.
   // Nenhum resultado de consulta ou cálculo de pontuação é simulado.
   for (const [model, metodos] of [
-    [Crianca, ["findOne"]],
+    [Crianca, ["findOne", "findOneAndUpdate"]],
     [Perfil, ["findOne"]],
-    [JogoSalvo, ["findOne"]],
+    [JogoSalvo, ["findOne", "findById"]],
     [Tarefa, ["find", "findById", "countDocuments"]],
     [Comodo, ["find", "findById"]],
     [Resposta, ["findOne"]],
@@ -189,6 +195,7 @@ export async function prepararJogo(t) {
     callback(session),
   );
   t.mock.method(session, "endSession", async () => {});
+  let sessaoId = await garantirSessaoResposta(usuarioId, partidas.get(String(perfilId))._id);
 
   const token = jwt.sign(
     { id: String(usuarioId), perfil: "crianca" },
@@ -296,6 +303,11 @@ export async function prepararJogo(t) {
     ) {
       const headers = { "Content-Type": "application/json" };
       if (autenticar) headers.Authorization = `Bearer ${token}`;
+      const personagemId = campos.perfilJogoId ?? perfilId;
+      const selecionado = mongoose.isValidObjectId(personagemId)
+        ? await Perfil.findOne({ _id: personagemId, criancaId, status: "ativo" }) : null;
+      const partida = partidas.get(String(personagemId)) ?? partidas.get(String(perfilId));
+      if (selecionado) sessaoId = await garantirSessaoResposta(usuarioId, partida._id);
       const resposta = await fetch(url, {
         method: "POST",
         headers,
@@ -313,6 +325,7 @@ export async function prepararJogo(t) {
             (correta ? tarefa.correta : tarefa.incorreta)._id,
           ),
           dificuldade,
+          sessaoId,
           ...campos,
         }),
       });
