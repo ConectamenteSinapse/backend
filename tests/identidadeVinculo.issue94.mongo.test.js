@@ -20,6 +20,7 @@ import criancaRoutes from "../routes/criancaRoutes.js";
 import responsavelRoutes from "../routes/responsavelRoutes.js";
 import historicoRoutes from "../routes/historicoJogoRoutes.js";
 import { criarCatalogo } from "./helpers/catalogo.js";
+import { garantirSessaoResposta, conferirBloqueioPermissao } from "./helpers/sessaoRespostaMongo.js";
 import {
   motivoIgnorarAtlas, validarAtivacao, obterUriTeste, abrirConexaoTeste,
   prepararColecoesTeste, confirmarModels, limparRegistrosTeste,
@@ -353,7 +354,7 @@ test("#94 Fase 1: identidade, vínculo e permissão por HTTP com MongoDB", {
   // Seus IDs são registrados antes de inserir. Contas/perfis seguem HTTP real.
   const catalogoIds = { comodos: ids(Comodo), tarefas: ids(Tarefa), respostas: ids(Resposta) };
   let bodyResposta;
-  await t.test("21 preparar atividade mínima e rejeitar resposta com permissão inicial false", async () => {
+  await t.test("21 preparar atividade mínima e rejeitar resposta com permissão inicial false", async s => {
     const catalogo = await criarCatalogo(undefined, catalogoIds, execucao);
     const personagem = new Perfil({ criancaId: crianca.perfilId, nomeAvatar: execucao, imagemAvatar: "teste.png" });
     registrar(Perfil, [personagem._id]); await personagem.save();
@@ -361,11 +362,19 @@ test("#94 Fase 1: identidade, vínculo e permissão por HTTP com MongoDB", {
     registrar(Partida, [partida._id]); await partida.save();
     const tarefa = catalogo.quarto.tarefas[0];
     bodyResposta = { perfilJogoId: String(personagem._id), jogoSalvoId: String(partida._id),
-      tarefaId: String(tarefa._id), respostaEscolhidaId: String(tarefa.correta._id), dificuldade: "facil" };
-    await semEscrita(async () => {
-      const res = await chamar("POST", "/historico-jogo/responder", bodyResposta, crianca);
-      erro(res, 403); assert.equal(res.body.mensagem, "Permissão para jogar inativa");
-    });
+      tarefaId: String(tarefa._id), respostaEscolhidaId: String(tarefa.correta._id), dificuldade: "facil", sessaoId: randomUUID() };
+    // Fixture de sessão anteriormente autorizada: a permissão continua false.
+    // Não força iniciarSessaoJogo a aceitar uma criança sem permissão.
+    const agora = new Date();
+    confirmarModels(conexao, [Crianca]);
+    assert.ok(ids(Crianca).some(id => String(id) === crianca.perfilId));
+    await Crianca.updateOne({ _id: crianca.perfilId }, { $set: {
+      sessaoJogoId: bodyResposta.sessaoId, sessaoJogoSalvoId: partida._id, sessaoJogoEstado: "ativa",
+      sessaoJogoContabilizadoEm: agora, sessaoJogoExpiraEm: new Date(agora.getTime() + 30000),
+      dataReferenciaTempo: new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(agora),
+    } });
+    await conferirBloqueioPermissao(s, estado, crianca.perfilId,
+      () => chamar("POST", "/historico-jogo/responder", bodyResposta, crianca));
   });
   await t.test("22 ativar permissão e confirmar persistência pelo banco/perfil HTTP", async () => {
     const res = await permissao(responsavel, true);
@@ -375,6 +384,7 @@ test("#94 Fase 1: identidade, vínculo e permissão por HTTP com MongoDB", {
     assert.equal(atual.body.permissaoAtiva, true);
   });
   await t.test("23 mesmo JWT infantil registra resposta e commit persiste", async () => {
+    bodyResposta.sessaoId = await garantirSessaoResposta(crianca.id, bodyResposta.jogoSalvoId);
     const res = await chamar("POST", "/historico-jogo/responder", bodyResposta, crianca);
     assert.equal(res.status, 201);
     assert.deepEqual(res.body, { acertou: true, tentativa: 1, pontuacaoGanha: 1, dificuldade: "facil" });
@@ -391,10 +401,9 @@ test("#94 Fase 1: identidade, vínculo e permissão por HTTP com MongoDB", {
     assert.equal(res.status, 200); assert.equal(res.body.permissaoAtiva, false);
     assert.equal((await estado()).Crianca.find((doc) => doc._id === crianca.perfilId).permissaoAtiva, false);
   });
-  await t.test("25 mesmo JWT é bloqueado após revogação sem histórico/estrelas extras", () => semEscrita(async () => {
-    const res = await chamar("POST", "/historico-jogo/responder", bodyResposta, crianca);
-    erro(res, 403); assert.equal(res.body.mensagem, "Permissão para jogar inativa");
-  }));
+  await t.test("25 mesmo JWT é bloqueado após revogação sem histórico/estrelas extras", s =>
+    conferirBloqueioPermissao(s, estado, crianca.perfilId,
+      () => chamar("POST", "/historico-jogo/responder", bodyResposta, crianca)));
   await t.test("26 duas tentativas HTTP concorrentes de vínculo têm um único vencedor", async () => {
     const concorrente = await conta("crianca");
     await cadastrar(concorrente); await login(concorrente); await perfil(concorrente);

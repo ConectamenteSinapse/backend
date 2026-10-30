@@ -24,6 +24,7 @@ import respostaRoutes from "../routes/respostaRoutes.js";
 import historicoRoutes from "../routes/historicoJogoRoutes.js";
 import progressoRoutes from "../routes/progressoRoutes.js";
 import consultaRoutes from "../routes/historicoConsultaRoutes.js";
+import { conferirBloqueioPermissao } from "./helpers/sessaoRespostaMongo.js";
 import {
   motivoIgnorarAtlas, validarAtivacao, obterUriTeste, abrirConexaoTeste,
   prepararColecoesTeste, confirmarModels, limparRegistrosTeste,
@@ -189,6 +190,22 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
     return res.body;
   }
   let a, b, responsavel, pa, pb, ja, ja2, jb, catalogo, t1, t2, t3;
+  const sessoes = new Map();
+  async function prepararSessao(c, jogo) {
+    if (c.sessao && (c.sessao.partida !== jogo._id || new Date(c.sessao.expiraEm).getTime() <= Date.now())) {
+      const fim = await chamar("PATCH", "/jogos-salvos/sessao/encerrar", { sessaoId: c.sessao.id }, c);
+      assert.equal(fim.status, 200); c.sessao = null;
+    }
+    if (!c.sessao) {
+      const inicio = await chamar("POST", `/jogos-salvos/${jogo._id}/sessao`, {}, c);
+      assert.equal(inicio.status, 201);
+      c.sessao = { partida: jogo._id, id: inicio.body.sessaoId, expiraEm: inicio.body.expiraEm };
+      sessoes.set(jogo._id, c.sessao.id);
+    } else if (new Date(c.sessao.expiraEm).getTime() - Date.now() < 10000) {
+      const heartbeat = await chamar("PATCH", "/jogos-salvos/sessao/heartbeat", { sessaoId: c.sessao.id }, c);
+      assert.equal(heartbeat.status, 200); c.sessao.expiraEm = heartbeat.body.expiraEm;
+    }
+  }
   const enviadas = [];
   const get = async (c, caminho) => {
     const res = await chamar("GET", caminho, undefined, c);
@@ -221,7 +238,7 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
       const tarefa = await inserirCatalogo(Tarefa, { comodoId: comodos[indice]._id, ordem,
         titulo: `Atividade ${indice}-${ordem}`, enunciado: "Escolha", descricao: execucao,
         imagemObjeto: "objeto.png", audioEnunciado: "enunciado.mp3",
-        posicao: { x: 0, y: 0, largura: 1, altura: 1 }, dificuldade: "facil", ativo: true });
+        posicao: { x: 0, y: 0, largura: 1, altura: 1 }, ativo: true });
       for (const [ordemResposta, correta] of [[1, true], [2, false]]) await inserirCatalogo(Resposta, {
         tarefaId: tarefa._id, ordem: ordemResposta, correta, texto: `Alternativa ${ordemResposta}`,
         imagem: `alternativa-${ordemResposta}.png`, audio: `alternativa-${ordemResposta}.mp3`,
@@ -236,15 +253,19 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
     const alternativa = tarefa.alternativas.find((r) => r.ordem === (acertou ? 1 : 2));
     assert.ok(alternativa);
     return { perfilJogoId: p._id, jogoSalvoId: j._id, tarefaId: tarefa._id,
-      respostaEscolhidaId: alternativa._id, dificuldade };
+      respostaEscolhidaId: alternativa._id, dificuldade, sessaoId: sessoes.get(j._id) };
   }
   async function responder(c, p, j, tarefa, acertou, dificuldade = "facil", tentativa = 1) {
+    await prepararSessao(c, j); // Preparação explícita, sem alterar os snapshots das rejeições.
     const body = bodyResposta(p, j, tarefa, acertou, dificuldade);
     const pontos = acertou ? { facil: 1, medio: 2, dificil: 3 }[dificuldade] : 0;
     const res = await chamar("POST", "/historico-jogo/responder", body, c);
     assert.equal(res.status, 201);
     assert.deepEqual(res.body, { acertou, tentativa, pontuacaoGanha: pontos, dificuldade });
-    enviadas.push({ ...body, criancaId: c.criancaId, acertou, tentativa, pontuacaoGanha: pontos });
+    // sessaoId autoriza a operação; não é um campo do HistoricoJogoModel.
+    const { sessaoId, ...dadosHistorico } = body;
+    assert.equal(typeof sessaoId, "string");
+    enviadas.push({ ...dadosHistorico, criancaId: c.criancaId, acertou, tentativa, pontuacaoGanha: pontos });
     const banco = await estado();
     const h = banco.HistoricoJogo.find((d) => d.jogoSalvoId === j._id && d.tarefaId === tarefa._id &&
       d.dificuldade === dificuldade && d.tentativa === tentativa);
@@ -315,12 +336,13 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
     pa = await personagem(a, "Jogador A"); pb = await personagem(b, "Jogador B");
     ja = await partida(a, pa._id, "Principal"); ja2 = await partida(a, pa._id, "Independente"); jb = await partida(b, pb._id, "Alheia");
   });
-  await t.test("03 preparar somente dois cômodos, três tarefas e seis alternativas", async () => {
+  await t.test("03 preparar dois cômodos, três tarefas compartilhadas pelos níveis e seis alternativas", async () => {
     catalogo = await catalogoMinimo();
     assert.equal(ids(Comodo).length, 2); assert.equal(ids(Tarefa).length, 3); assert.equal(ids(Resposta).length, 6);
   });
   await t.test("04 ativar e consultar a permissão de jogar", async () => {
     await permitir(a, true);
+    await prepararSessao(a, ja);
     const perfil = await get(a, "/criancas/meu-perfil");
     assert.equal(perfil.permissaoAtiva, true);
   });
@@ -342,6 +364,7 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
     }
     [t1, t2] = listas[0]; [t3] = listas[1];
     assert.equal(listas[0].length, 2); assert.equal(listas[1].length, 1);
+    assert.ok(listas.flat().every(t => !Object.hasOwn(t, "dificuldade")));
     const detalhe = await get(a, `/tarefas/${t1._id}`); assert.equal(detalhe.audioEnunciado, "enunciado.mp3");
     const todas = await get(a, "/tarefas"); semCorreta([detalhe, todas]);
     assert.ok(todas.some((tarefa) => tarefa._id === t1._id));
@@ -389,18 +412,18 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
     await responder(a, pa, ja, t2, true);
     await consultas(a, ja, numeros(4, 3, 1, 2, 3, 2, 75));
   });
-  await t.test("17 médio é liberado; progresso distingue dificuldade e resumo não duplica tarefa", async () => {
-    await responder(a, pa, ja, t1, true, "medio"); await responder(a, pa, ja, t2, true, "medio");
+  await t.test("17 médio reutiliza os mesmos IDs; progresso distingue dificuldade e resumo conta duas tarefas", async () => {
+    for (const tarefa of [t1, t2]) await responder(a, pa, ja, tarefa, true, "medio");
     await consultas(a, ja, numeros(6, 5, 1, 4, 7, 2, 83.33));
   });
   await t.test("18 próximo cômodo segue bloqueado enquanto difícil está pendente", () => semEscrita(async () => {
     erro(await chamar("POST", "/historico-jogo/responder", bodyResposta(pa, ja, t3), a), 403, "COMODO_BLOQUEADO");
   }));
   await t.test("19 concluir difícil libera o segundo cômodo por respostas HTTP reais", async () => {
-    await responder(a, pa, ja, t1, true, "dificil"); await responder(a, pa, ja, t2, true, "dificil");
+    for (const tarefa of [t1, t2]) await responder(a, pa, ja, tarefa, true, "dificil");
     await responder(a, pa, ja, t3, true);
   });
-  await t.test("20 nove tentativas: progresso tem sete conclusões e desempenho três tarefas distintas", async () => {
+  await t.test("20 nove tentativas: sete conclusões por dificuldade e três tarefas distintas", async () => {
     const res = await consultas(a, ja, numeros(9, 8, 1, 7, 14, 3, 88.89));
     assert.deepEqual(res.desempenho.desempenhoPorComodo.sort((x, y) => x.comodoId.localeCompare(y.comodoId)), [
       { comodoId: t1.comodoId, tentativas: 8, acertos: 7, erros: 1, percentualAcertos: 87.5, tarefasConcluidas: 2 },
@@ -408,6 +431,7 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
     ].sort((x, y) => x.comodoId.localeCompare(y.comodoId)));
   });
   await t.test("21 outra partida não herda desbloqueio nem contador de tentativas", async () => {
+    await prepararSessao(a, ja2);
     await semEscrita(async () => { erro(await chamar("POST", "/historico-jogo/responder", bodyResposta(pa, ja2, t2), a), 403, "TAREFA_FORA_DA_ORDEM"); });
     const antes = await doc(Partida, ja._id);
     await responder(a, pa, ja2, t1, true);
@@ -420,12 +444,14 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
     const grupo = res.pGeral.tarefas.find((g) => g.tarefaId === t1._id && g.dificuldade === "facil");
     assert.equal(grupo.tentativas, 4); assert.equal(grupo.acertos, 3); assert.equal(grupo.erros, 1);
   });
-  await t.test("23 outra criança sem permissão é bloqueada; após ativação seus dados ficam isolados", async () => {
-    await semEscrita(async () => {
-      const res = await chamar("POST", "/historico-jogo/responder", bodyResposta(pb, jb, t1, false), b);
-      erro(res, 403); assert.equal(res.body.mensagem, "Permissão para jogar inativa");
-    });
-    await permitir(b, true); await responder(b, pb, jb, t1, false);
+  await t.test("23 outra criança sem permissão é bloqueada; após ativação seus dados ficam isolados", async s => {
+    // Prepara uma sessão por HTTP e revoga a permissão antes da resposta.
+    await permitir(b, true); await prepararSessao(b, jb); await permitir(b, false);
+    await conferirBloqueioPermissao(s, estado, b.criancaId,
+      () => chamar("POST", "/historico-jogo/responder", bodyResposta(pb, jb, t1, false), b));
+    s.mock.timers.reset(); b.sessao = null; // O bloqueio confirmou o encerramento.
+    await permitir(b, true); await prepararSessao(b, jb);
+    await responder(b, pb, jb, t1, false);
     await consultas(b, jb, numeros(1, 0, 1, 0, 0, 0, 0));
     await consultas(a, ja, numeros(9, 8, 1, 7, 14, 3, 88.89), numeros(10, 9, 1, 7, 15, 3, 90));
   });
@@ -436,12 +462,11 @@ test("#94 Fase 3: jornada integrada do jogo por HTTP e MongoDB", {
       erro(await chamar("GET", `/criancas/${a.id}${sufixo}`, undefined, b), 403);
     erro(await chamar("POST", "/historico-jogo/responder", bodyResposta(pa, ja, t1), b), 404);
   }));
-  await t.test("25 revogação impede novas respostas sem alterar histórico, posição ou estrelas", async () => {
+  await t.test("25 revogação impede novas respostas sem alterar histórico, posição ou estrelas", async s => {
+    await prepararSessao(a, ja);
     await permitir(a, false);
-    await semEscrita(async () => {
-      const res = await chamar("POST", "/historico-jogo/responder", bodyResposta(pa, ja, t3), a);
-      erro(res, 403); assert.equal(res.body.mensagem, "Permissão para jogar inativa");
-    });
+    await conferirBloqueioPermissao(s, estado, a.criancaId,
+      () => chamar("POST", "/historico-jogo/responder", bodyResposta(pa, ja, t3), a));
     await consultas(a, ja, numeros(9, 8, 1, 7, 14, 3, 88.89), numeros(10, 9, 1, 7, 15, 3, 90));
   });
   await t.test("26 reabrir leitura e renovar login mantém histórico, progresso e desempenho persistidos", async () => {

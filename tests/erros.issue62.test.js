@@ -84,6 +84,22 @@ async function executar(fn, requisicao = req()) {
 const falha = () => Object.assign(new Error("senha=ficticia; mongodb://host-interno; stack-interna"),
   { stack: "stack-interna", keyValue: { email: "segredo@example.invalid" } });
 
+// Contrato aprovado da #107, aplicado somente a jogoSalvoController.js.
+// Os demais códigos e Controllers preservam as expectativas anteriores.
+const contratosErrosSessao = {
+  SESSAO_INVALIDA: { handler: "renovarSessao", status: 409, mensagem: "A sessão de jogo não está disponível" },
+  SESSAO_INATIVA: { handler: "pausarSessao", status: 409, mensagem: "A sessão de jogo não está disponível" },
+  SESSAO_EXPIRADA: { handler: "renovarSessao", status: 409, mensagem: "A sessão de jogo não está disponível" },
+  SESSAO_JA_ATIVA: { handler: "iniciarSessao", status: 409, mensagem: "Já existe uma sessão de jogo ativa" },
+  CONFLITO_SESSAO: { handler: "encerrarSessao", status: 409, mensagem: "Não foi possível atualizar a sessão" },
+  LIMITE_TEMPO_ATINGIDO: { handler: "iniciarSessao", status: 403, mensagem: "O limite de tempo diário foi atingido" },
+};
+// O Controller de histórico mantém mensagens próprias e o mesmo contrato
+// HTTP de sessão; não deve cair nas heurísticas de erros legadas.
+const contratosTempoHistorico = Object.fromEntries(Object.entries(contratosErrosSessao).map(([codigo, caso]) =>
+  [codigo, { ...caso, handler: "registrarResposta", mensagem: codigo === "LIMITE_TEMPO_ATINGIDO"
+    ? "O limite diário de jogo foi atingido" : "A sessão de jogo não está disponível" }]));
+
 for (const { arquivo, funcoes } of grupos) {
   for (const [nome, fn] of Object.entries(funcoes)) {
     test(`#62 ${arquivo}/${nome}: 500 sanitizado`, async (t) => {
@@ -103,7 +119,8 @@ for (const { arquivo, funcoes } of grupos) {
         t.after(() => { if (anterior === undefined) delete process.env.JWT_SECRET; else process.env.JWT_SECRET = anterior; });
       }
       const resposta = await executar(fn);
-      const status = /^(delete|excluir|remover)/.test(nome) ? 204 : /^(post|cadastrar|registrar)/.test(nome) ? 201 : 200;
+      const status = arquivo === "jogoSalvoController.js" && nome === "iniciarSessao" ? 201 :
+        /^(delete|excluir|remover)/.test(nome) ? 204 : /^(post|cadastrar|registrar)/.test(nome) ? 201 : 200;
       assert.equal(resposta.statusCode, status);
       assert.ok(estado.chamadas.length);
       if (status === 204) assert.equal(resposta.body, undefined);
@@ -121,15 +138,33 @@ for (const { arquivo, funcoes } of grupos) {
   // contrato de domínio, não da resposta observada durante o teste.
   const source = readFileSync(new URL(`../controllers/${arquivo}`, import.meta.url), "utf8");
   const codigos = [...new Set([...source.matchAll(/error\.message === "([A-Z_]+)"/g)].map((m) => m[1]))];
+  const contratosTempo = arquivo === "jogoSalvoController.js" ? contratosErrosSessao :
+    arquivo === "historicoJogoController.js" ? contratosTempoHistorico : undefined;
+  if (contratosTempo) {
+    // Remover um tratamento de sessão em produção deve reprovar o contrato,
+    // não fazer seu cenário desaparecer da descoberta automática.
+    for (const codigo of Object.keys(contratosTempo)) if (!codigos.includes(codigo)) codigos.push(codigo);
+  }
   const primeira = Object.entries(funcoes).find(([nome]) => !/login/.test(nome))[1];
   for (const codigo of codigos) {
-    const fn = Object.values(funcoes).find((f) => f.toString().includes(`"${codigo}"`)) ?? primeira;
-    const status = /NAO_ENCONTRAD|NAO_VINCULADA/.test(codigo) ? 404 : /EXISTENTE|JA_VINCULADA/.test(codigo) ? 409 :
-      codigo === "CREDENCIAIS_INVALIDAS" ? 401 : /ACESSO_NEGADO|INATIVA|BLOQUEAD|FORA_DA_ORDEM|INDISPONIVEL/.test(codigo) ? 403 : 400;
+    const sessao = contratosTempo?.[codigo];
+    const fn = sessao ? funcoes[sessao.handler] :
+      Object.values(funcoes).find((f) => f.toString().includes(`"${codigo}"`)) ?? primeira;
+    const status = sessao?.status ?? (/NAO_ENCONTRAD|NAO_VINCULADA/.test(codigo) ? 404 : /EXISTENTE|JA_VINCULADA/.test(codigo) ? 409 :
+      codigo === "CREDENCIAIS_INVALIDAS" ? 401 : /ACESSO_NEGADO|INATIVA|BLOQUEAD|FORA_DA_ORDEM|INDISPONIVEL/.test(codigo) ? 403 : 400);
     test(`#62 ${arquivo}: ${codigo} -> ${status}`, async (t) => {
       configurar(t, new Error(codigo));
-      const resposta = await executar(fn);
+      const sessaoId = "sessao-ficticia-issue107";
+      const resposta = await executar(fn, sessao ? req({ ...body, sessaoId }) : req());
       contrato(resposta, status);
+      if (sessao) {
+        assert.deepEqual(resposta.body, { erro: true, mensagem: sessao.mensagem, codigo });
+        const argumentos = sessao.handler === "registrarResposta"
+          ? [id, body.perfilJogoId, body.jogoSalvoId, body.tarefaId, body.respostaEscolhidaId, body.dificuldade, sessaoId]
+          : [id, sessao.handler === "iniciarSessao" ? id : sessaoId];
+        assert.deepEqual(estado.chamadas, [argumentos],
+          "O handler de sessão deve encaminhar o usuário e o identificador corretos ao Service");
+      }
       if (/BLOQUEAD|FORA_DA_ORDEM|COMODO_INDISPONIVEL/.test(codigo)) assert.equal(resposta.body.codigo, codigo);
     });
   }

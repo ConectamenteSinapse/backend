@@ -6,6 +6,10 @@ import {
   obterJogoSalvoPorId,
   editarJogoSalvo,
   removerJogoSalvo,
+  iniciarSessao,
+  renovarSessao,
+  pausarSessao,
+  encerrarSessao,
 } from "../controllers/jogoSalvoController.js";
 import { obterProgressoJogo } from "../controllers/progressoController.js";
 import { obterHistoricoJogo } from "../controllers/historicoConsultaController.js";
@@ -18,6 +22,14 @@ const router = express.Router();
 // Proteger todas as rotas com JWT e perfil criança
 router.use(autentificar);
 router.use(autorizarPerfil("crianca"));
+
+router.post("/:id/sessao", iniciarSessao);
+
+router.patch("/sessao/heartbeat", renovarSessao);
+
+router.patch("/sessao/pausar", pausarSessao);
+
+router.patch("/sessao/encerrar", encerrarSessao);
 
 // Criar uma nova partida
 router.post("/", cadastrarJogoSalvo);

@@ -29,6 +29,7 @@ async function preparar(t) {
     if (String(filtro._id) !== String(crianca._id) ||
         String(filtro.responsavelId) !== String(crianca.responsavelId)) return null;
     Object.assign(crianca, update.$set);
+    for (const [campo, valor] of Object.entries(update.$inc ?? {})) crianca[campo] = (crianca[campo] ?? 0) + valor;
     return crianca;
   });
   return {
@@ -45,11 +46,11 @@ for (const limite of [1, 30, 120]) {
       status: 200,
       dados: { mensagem: "Limite diário atualizado com sucesso", limiteTempoDiario: limite },
     });
-    assert.deepEqual(serializar(j.crianca), { ...antes, limiteTempoDiario: limite });
+    assert.deepEqual(serializar(j.crianca), { ...antes, limiteTempoDiario: limite, sessaoJogoVersao: antes.sessaoJogoVersao + 1 });
     assert.deepEqual(j.consultas, [{ usuarioId: String(j.responsavel.usuarioId) }]);
     assert.deepEqual(j.atualizacoes, [{
       filtro: { _id: String(j.crianca._id), responsavelId: j.responsavel._id },
-      update: { $set: { limiteTempoDiario: limite } },
+      update: { $set: { limiteTempoDiario: limite }, $inc: { sessaoJogoVersao: 1 } },
       opcoes: { new: true, runValidators: true },
     }]);
   });
@@ -62,8 +63,8 @@ test("#101 HTTP: null remove limite existente e preserva demais campos", async (
     status: 200,
     dados: { mensagem: "Limite diário atualizado com sucesso", limiteTempoDiario: null },
   });
-  assert.deepEqual(serializar(j.crianca), { ...antes, limiteTempoDiario: null });
-  assert.deepEqual(j.atualizacoes[0].update, { $set: { limiteTempoDiario: null } });
+  assert.deepEqual(serializar(j.crianca), { ...antes, limiteTempoDiario: null, sessaoJogoVersao: antes.sessaoJogoVersao + 1 });
+  assert.deepEqual(j.atualizacoes[0].update, { $set: { limiteTempoDiario: null }, $inc: { sessaoJogoVersao: 1 } });
 });
 
 for (const [nome, body] of invalidos) {
@@ -155,6 +156,6 @@ test("#101 HTTP: campos extras não alteram identidade, vínculo, permissão ou 
     responsavelId: String(id()), permissaoAtiva: false, tempoUsadoHoje: 0,
     dataNascimento: "2020-01-01", criadoEm: "2020-01-01", __v: 99,
   })).status, 200);
-  assert.deepEqual(j.atualizacoes[0].update, { $set: { limiteTempoDiario: 60 } });
-  assert.deepEqual(serializar(j.crianca), { ...antes, limiteTempoDiario: 60 });
+  assert.deepEqual(j.atualizacoes[0].update, { $set: { limiteTempoDiario: 60 }, $inc: { sessaoJogoVersao: 1 } });
+  assert.deepEqual(serializar(j.crianca), { ...antes, limiteTempoDiario: 60, sessaoJogoVersao: antes.sessaoJogoVersao + 1 });
 });

@@ -12,6 +12,7 @@ import Resposta from "../models/respostaModel.js";
 import historicoService from "../services/historicoJogoService.js";
 import { arquivarPersonagem } from "../services/perfilJogoService.js";
 import { criarCatalogo } from "./helpers/catalogo.js";
+import { garantirSessaoResposta } from "./helpers/sessaoRespostaMongo.js";
 import {
   conectarBancoCommitReal,
   confirmarBancoCommitReal,
@@ -68,6 +69,14 @@ async function preparar(t) {
         conexao.getClient().off("commandStarted", monitorar);
         confirmarBancoCommitReal(conexao);
         await limparRegistrosTeste(conexao, registros, Historico, registros.get(Perfil) ?? []);
+        if (leitura) {
+          confirmarBancoCommitReal(leitura);
+          for (const [Model, ids] of registros) assert.equal(await leitura.db.collection(Model.collection.name)
+            .countDocuments({ _id: { $in: ids } }), 0);
+          assert.equal(await leitura.db.collection(Historico.collection.name)
+            .countDocuments({ perfilJogoId: { $in: registros.get(Perfil) ?? [] } }), 0);
+          t.diagnostic("Concorrência de personagens: zero resíduos por conexão independente");
+        }
       }
     } finally {
       try {
@@ -113,6 +122,7 @@ async function preparar(t) {
     nomeJogo: "Concorrência",
     estrelasTotal: 7,
   });
+  const sessaoId = await garantirSessaoResposta(crianca.usuarioId, partida._id);
   return {
     perfil,
     partida,
@@ -125,6 +135,7 @@ async function preparar(t) {
         tarefa._id,
         tarefa[correta ? "correta" : "incorreta"]._id,
         "facil",
+        sessaoId,
       ),
     arquivar: () => arquivarPersonagem(crianca.usuarioId, perfil._id),
     async estado() {
@@ -144,11 +155,12 @@ async function preparar(t) {
           .toArray(),
       };
     },
-    observarEscrita(callback) {
+    observarEscrita(callback, Model = Perfil) {
       const handler = (evento) => {
         if (
           evento.commandName === "findAndModify" &&
-          String(evento.command.query?._id) === String(perfil._id)
+          evento.command.findAndModify === Model.collection.name &&
+          String(evento.command.query?._id) === String(Model === Crianca ? crianca._id : perfil._id)
         )
           callback(evento.command);
       };
@@ -323,7 +335,7 @@ for (const escolhas of [
       j.observarEscrita((command) => {
         if (command.autocommit === false && ++escritas >= 2)
           segundaEscrita.resolve();
-      });
+      }, Crianca); // A reconciliação agora serializa as respostas antes da reserva do perfil.
       const original = Historico.countDocuments;
       let pausou = false;
       t.mock.method(Historico, "countDocuments", function (...args) {

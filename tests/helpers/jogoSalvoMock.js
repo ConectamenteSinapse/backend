@@ -21,7 +21,9 @@ export const id = () => new mongoose.Types.ObjectId();
 const igual = (a, b) => String(a) === String(b);
 function corresponde(doc, filtro) {
   return Object.entries(filtro).every(([campo, valor]) => {
+    if (campo === "$or") return valor.some(parte => corresponde(doc, parte));
     if (valor && typeof valor === "object" && !valor._bsontype) {
+      if ("$exists" in valor) return Object.hasOwn(doc, campo) === valor.$exists;
       if ("$in" in valor) return valor.$in.some((v) => igual(doc[campo], v));
       if ("$lt" in valor) return doc[campo] < valor.$lt;
     }
@@ -85,7 +87,6 @@ export async function preparar(t) {
         imagemObjeto: "t.png",
         posicao: { x: 0, y: 0, largura: 1, altura: 1 },
         ordem,
-        dificuldade: "facil",
       }),
     ),
   );
@@ -272,6 +273,15 @@ export async function preparar(t) {
     correta = true,
     dificuldade = "facil",
   ) {
+    // Preparação da fixture: uma sessão válida para a partida selecionada.
+    // O envio HTTP não injeta/repara sessão; casos inválidos podem alterar
+    // o snapshot ou remover o campo depois de construir este body.
+    const sessaoId = `sessao-fixture-${jogo._id}`;
+    const infantil = dados.get(Crianca).get(String(crianca._id));
+    if (infantil.sessaoJogoId !== sessaoId) Object.assign(infantil, {
+      sessaoJogoId: sessaoId, sessaoJogoSalvoId: jogo._id, sessaoJogoEstado: "ativa",
+      sessaoJogoContabilizadoEm: new Date(), sessaoJogoExpiraEm: new Date(Date.now() + 30000),
+    });
     const resposta = linhas(Resposta).find(
       (r) => igual(r.tarefaId, tarefa._id) && r.correta === correta,
     );
@@ -281,6 +291,7 @@ export async function preparar(t) {
       tarefaId: String(tarefa._id),
       respostaEscolhidaId: String(resposta._id),
       dificuldade,
+      sessaoId,
     };
   }
   return {

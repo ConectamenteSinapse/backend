@@ -2,7 +2,7 @@
 
 API do jogo ConectaMente, voltado a atividades cotidianas para crianças com síndrome de Down e ao acompanhamento por responsáveis.
 
-A API utiliza MongoDB com Mongoose para persistência, autenticação JWT e senhas protegidas com bcrypt. Os recursos atuais incluem contas, perfis infantis e de responsáveis, vínculos, permissão para jogar, catálogo de atividades, personagens, partidas, tentativas, histórico, progresso e resumo de desempenho.
+A API utiliza MongoDB com Mongoose para persistência, autenticação JWT e senhas protegidas com bcrypt. Os recursos atuais incluem contas, perfis infantis e de responsáveis, vínculos, permissão para jogar, catálogo de atividades, personagens, partidas, sessões com limite diário, tentativas, histórico, progresso com estados dos cômodos, evolução diária e resumo de desempenho.
 
 ## Tecnologias e organização
 
@@ -126,10 +126,10 @@ Os IDs são strings ObjectId do MongoDB, normalmente com 24 caracteres hexadecim
 
 **O parâmetro `:criancaId` tem dois significados diferentes nas rotas atuais:**
 
-| Operação                                                                    | ID exigido na URL        |
-| --------------------------------------------------------------------------- | ------------------------ |
-| Consultar progresso, histórico ou resumo geral em `/criancas/:criancaId...` | `Usuario._id` da criança |
-| Alterar permissão em `/responsaveis/minhas-criancas/:criancaId/permissao`   | `Crianca._id`            |
+| Operação                                                                                  | ID exigido na URL        |
+| ----------------------------------------------------------------------------------------- | ------------------------ |
+| Consultar progresso, histórico ou resumo geral em `/criancas/:criancaId...`               | `Usuario._id` da criança |
+| Alterar permissão/limite ou desvincular em `/responsaveis/minhas-criancas/:criancaId/...` | `Crianca._id`            |
 
 Histórico e progresso gerais retornam em `criancaId` o ID da conta recebido na URL. O resumo de desempenho recebe o mesmo ID da conta, mas retorna `Crianca._id` em `criancaId`.
 
@@ -140,13 +140,13 @@ Respostas de sucesso não possuem um envelope único: podem ser documentos, arra
 | Status | Uso principal                                                                                                    |
 | ------ | ---------------------------------------------------------------------------------------------------------------- |
 | 200    | Consulta ou atualização concluída. Listas vazias também podem retornar 200.                                      |
-| 201    | Conta, perfil, personagem, partida ou tentativa criada.                                                          |
+| 201    | Conta, perfil, personagem, partida, sessão ou tentativa criada.                                                  |
 | 204    | Personagem arquivado ou partida excluída, sem corpo.                                                             |
 | 400    | Dados, identificadores, JSON ou URL inválidos.                                                                   |
 | 401    | JWT ausente/inválido/expirado ou credenciais incorretas.                                                         |
-| 403    | Perfil sem acesso, consulta não autorizada, permissão inativa ou bloqueio do jogo.                               |
+| 403    | Perfil sem acesso, consulta não autorizada, permissão inativa, limite diário atingido ou bloqueio do jogo.       |
 | 404    | Rota ou registro inexistente; em personagens e partidas também indica recurso não acessível ao dono autenticado. |
-| 409    | Duplicidade de conta/perfil ou criança já vinculada.                                                             |
+| 409    | Duplicidade de conta/perfil, criança já vinculada ou conflito/indisponibilidade de sessão.                       |
 | 500    | Falha interna tratada ou configuração obrigatória ausente.                                                       |
 
 O contrato dos erros tratados pela API é:
@@ -181,11 +181,22 @@ Alguns erros 403 incluem `codigo`, que deve ser preservado pelo cliente:
 | `COMODO_BLOQUEADO`      | Existem cômodos anteriores ainda não concluídos.                | Registrar resposta e atualizar partida |
 | `COMODO_INDISPONIVEL`   | O cômodo está ausente, inativo ou indisponível para execução.   | Registrar resposta                     |
 
-Nem todo erro 403 possui `codigo`: perfil incorreto, permissão inativa e tarefa inativa, por exemplo, retornam `erro` e `mensagem`.
+Nem todo erro 403 possui `codigo`: perfil incorreto e, no registro de respostas, permissão inativa e tarefa inativa retornam `erro` e `mensagem`.
+
+Nos endpoints de sessão, `PERMISSAO_INATIVA` inclui `codigo`; no registro de respostas, essa rejeição mantém o formato anterior sem `codigo`. Os erros de sessão incluem `codigo` nos dois recursos. As mensagens podem variar entre Controllers; utilize o código quando presente.
+
+| `codigo`                | Status | Significado                                                                                 |
+| ----------------------- | ------ | ------------------------------------------------------------------------------------------- |
+| `SESSAO_INVALIDA`       | 409    | Identificador ausente/inválido, sessão não correspondente ou dados de tempo inconsistentes. |
+| `SESSAO_INATIVA`        | 409    | Sessão pausada ou encerrada.                                                                |
+| `SESSAO_EXPIRADA`       | 409    | Validade da sessão encerrada.                                                               |
+| `SESSAO_JA_ATIVA`       | 409    | Existe outra sessão ativa e válida da criança.                                              |
+| `CONFLITO_SESSAO`       | 409    | A atualização condicional não pôde ser confirmada.                                          |
+| `LIMITE_TEMPO_ATINGIDO` | 403    | O consumo reconciliado esgotou o limite diário.                                             |
 
 ## Rotas ativas
 
-São **34 rotas ativas**, contando método e endpoint, incluindo `GET /`. As tabelas apresentam os principais status por operação; JSON malformado e URL inválida também podem produzir 400 conforme o tratamento de entrada.
+São **41 rotas ativas**, contando método e endpoint, incluindo `GET /`. As tabelas apresentam os principais status por operação; JSON malformado e URL inválida também podem produzir 400 conforme o tratamento de entrada.
 
 Parâmetros precedidos por `:` devem ser substituídos pelos IDs reais. GET e DELETE não precisam de body. Não há paginação nem filtros por query implementados nesses endpoints.
 
@@ -253,14 +264,16 @@ O cadastro exige body, mas `dataNascimento` é opcional. Este exemplo retorna 20
 
 Também é válido enviar `{}`. Omitir o body retorna 400. O usuário vem do JWT; o perfil é criado com `responsavelId: null` e `permissaoAtiva: false`. O cliente não define vínculo ou permissão nesse cadastro. Perfil duplicado retorna 409.
 
-### Responsáveis, vínculo e permissão — 4 rotas
+### Responsáveis, vínculo, permissão e limite diário — 6 rotas
 
-| Método | Endpoint                                             | Objetivo                                                | Acesso      | Principais status                 |
-| ------ | ---------------------------------------------------- | ------------------------------------------------------- | ----------- | --------------------------------- |
-| POST   | `/responsaveis`                                      | Criar o perfil do responsável autenticado.              | Responsável | 201, 400, 401, 403, 404, 409, 500 |
-| GET    | `/responsaveis/minhas-criancas`                      | Listar os perfis infantis vinculados ao responsável.    | Responsável | 200, 400, 401, 403, 404, 500      |
-| POST   | `/responsaveis/vincular-crianca`                     | Vincular a criança pelas credenciais da conta infantil. | Responsável | 200, 400, 401, 403, 404, 409, 500 |
-| PATCH  | `/responsaveis/minhas-criancas/:criancaId/permissao` | Conceder ou revogar permissão para jogar.               | Responsável | 200, 400, 401, 403, 404, 500      |
+| Método | Endpoint                                                | Objetivo                                                | Acesso      | Principais status                 |
+| ------ | ------------------------------------------------------- | ------------------------------------------------------- | ----------- | --------------------------------- |
+| POST   | `/responsaveis`                                         | Criar o perfil do responsável autenticado.              | Responsável | 201, 400, 401, 403, 404, 409, 500 |
+| GET    | `/responsaveis/minhas-criancas`                         | Listar os perfis infantis vinculados ao responsável.    | Responsável | 200, 400, 401, 403, 404, 500      |
+| POST   | `/responsaveis/vincular-crianca`                        | Vincular a criança pelas credenciais da conta infantil. | Responsável | 200, 400, 401, 403, 404, 409, 500 |
+| PATCH  | `/responsaveis/minhas-criancas/:criancaId/permissao`    | Conceder ou revogar permissão para jogar.               | Responsável | 200, 400, 401, 403, 404, 500      |
+| PATCH  | `/responsaveis/minhas-criancas/:criancaId/limite-tempo` | Configurar ou remover o limite diário.                  | Responsável | 200, 400, 401, 403, 404, 500      |
+| DELETE | `/responsaveis/minhas-criancas/:criancaId/vinculo`      | Desvincular a criança e revogar sua permissão.          | Responsável | 200, 400, 401, 403, 404, 500      |
 
 **Criar perfil:** POST `/responsaveis` usa a conta do JWT. Não exige body; enviar `{}` também é possível. Perfil duplicado retorna 409.
 
@@ -294,6 +307,20 @@ Use `false` para revogar. O campo exige booleano; `"true"` é inválido. Crianç
 
 A listagem das crianças retorna array, inclusive `[]`; responsável sem perfil cadastrado recebe 404. Não existe rota ativa específica para consultar o próprio perfil de responsável.
 
+**Limite diário:** PATCH `/responsaveis/minhas-criancas/:criancaId/limite-tempo` exige body com `limiteTempoDiario`, usando `Crianca._id` na URL:
+
+```json
+{
+  "limiteTempoDiario": 30
+}
+```
+
+O valor é um inteiro positivo em **minutos**. `null` remove o limite; zero, negativos, frações, strings e campo ausente retornam 400. O sucesso retorna 200 com `{ "mensagem": "Limite diário atualizado com sucesso", "limiteTempoDiario": 30 }`. Só o responsável vinculado pode alterar a configuração; criança não vinculada retorna 404.
+
+**Desvincular:** DELETE `/responsaveis/minhas-criancas/:criancaId/vinculo` não exige body. Retorna 200 com `{ "mensagem": "Criança desvinculada com sucesso" }`, remove o vínculo e define `permissaoAtiva: false`, preservando conta, consumo, limite e histórico.
+
+Alterar permissão, alterar limite e desvincular incrementam `sessaoJogoVersao` atomicamente. Isso invalida decisões concorrentes de início/heartbeat, que precisam reler a política. Essas operações não apagam nem reiniciam o consumo diário.
+
 ### Cômodos — 3 rotas
 
 | Método | Endpoint                     | Objetivo                                     | Acesso | Principais status       |
@@ -321,7 +348,9 @@ A consulta de tarefas verifica a existência do cômodo. Com tarefas, retorna ar
 | GET    | `/tarefas/:id`                 | Consultar uma tarefa por `Tarefa._id`.                | JWT    | 200, 400, 401, 404, 500 |
 | GET    | `/tarefas/:tarefaId/respostas` | Consultar alternativas de `Tarefa._id`, sem gabarito. | JWT    | 200, 400, 401, 404, 500 |
 
-As tarefas incluem seus campos cadastrados, como `titulo`, `enunciado`, `descricao`, `comodoId`, `imagemObjeto`, `posicao` (`x`, `y`, `largura`, `altura`), `ordem`, `dificuldade` e, quando cadastrado, `audioEnunciado`.
+As tarefas incluem seus campos cadastrados, como `titulo`, `enunciado`, `descricao`, `comodoId`, `imagemObjeto`, `posicao` (`x`, `y`, `largura`, `altura`), `ordem` e, quando cadastrado, `audioEnunciado`.
+
+Cada tarefa é cadastrada uma única vez por cômodo e executada nos três níveis: **fácil → médio → difícil**. `dificuldade` não é um campo do Model de tarefa nem é exigido no cadastro interno. O nível é registrado em cada tentativa e na posição da partida. Um campo `dificuldade` ainda presente em documentos antigos não define a execução da tarefa; a aplicação não migra nem apaga esses dados automaticamente.
 
 GET `/tarefas` retorna array, inclusive `[]`. Na consulta de alternativas por tarefa, tarefa inexistente retorna 404; tarefa existente sem alternativas retorna 200 com `[]`. As alternativas são ordenadas por `ordem` crescente.
 
@@ -377,17 +406,21 @@ A listagem retorna array de personagens ativos, ordenados por `criadoEm` decresc
 
 Personagem inexistente, de outra criança ou arquivado retorna 404 nas operações por ID. DELETE retorna 204 sem corpo e altera `status` para `arquivado`, preservando documento, partidas e históricos. As partidas desse personagem ficam inacessíveis pelos endpoints de jogos salvos.
 
-### Jogos salvos / partidas — 7 rotas
+### Jogos salvos / partidas — 11 rotas
 
-| Método | Endpoint                      | Objetivo                                          | Acesso  | Principais status            |
-| ------ | ----------------------------- | ------------------------------------------------- | ------- | ---------------------------- |
-| POST   | `/jogos-salvos`               | Criar partida para personagem próprio ativo.      | Criança | 201, 400, 401, 403, 404, 500 |
-| GET    | `/jogos-salvos`               | Listar partidas dos personagens próprios ativos.  | Criança | 200, 401, 403, 404, 500      |
-| GET    | `/jogos-salvos/:id`           | Consultar ou retomar partida por `JogoSalvo._id`. | Criança | 200, 400, 401, 403, 404, 500 |
-| PATCH  | `/jogos-salvos/:id`           | Atualizar nome e/ou posição válida da partida.    | Criança | 200, 400, 401, 403, 404, 500 |
-| DELETE | `/jogos-salvos/:id`           | Excluir partida preservando seus históricos.      | Criança | 204, 400, 401, 403, 404, 500 |
-| GET    | `/jogos-salvos/:id/progresso` | Consultar progresso exclusivo da partida.         | Criança | 200, 400, 401, 403, 404, 500 |
-| GET    | `/jogos-salvos/:id/historico` | Consultar tentativas exclusivas da partida.       | Criança | 200, 400, 401, 403, 404, 500 |
+| Método | Endpoint                         | Objetivo                                          | Acesso  | Principais status                 |
+| ------ | -------------------------------- | ------------------------------------------------- | ------- | --------------------------------- |
+| POST   | `/jogos-salvos`                  | Criar partida para personagem próprio ativo.      | Criança | 201, 400, 401, 403, 404, 500      |
+| GET    | `/jogos-salvos`                  | Listar partidas dos personagens próprios ativos.  | Criança | 200, 401, 403, 404, 500           |
+| GET    | `/jogos-salvos/:id`              | Consultar ou retomar partida por `JogoSalvo._id`. | Criança | 200, 400, 401, 403, 404, 500      |
+| PATCH  | `/jogos-salvos/:id`              | Atualizar nome e/ou posição válida da partida.    | Criança | 200, 400, 401, 403, 404, 500      |
+| DELETE | `/jogos-salvos/:id`              | Excluir partida preservando seus históricos.      | Criança | 204, 400, 401, 403, 404, 500      |
+| GET    | `/jogos-salvos/:id/progresso`    | Consultar progresso exclusivo da partida.         | Criança | 200, 400, 401, 403, 404, 500      |
+| GET    | `/jogos-salvos/:id/historico`    | Consultar tentativas exclusivas da partida.       | Criança | 200, 400, 401, 403, 404, 500      |
+| POST   | `/jogos-salvos/:id/sessao`       | Iniciar uma sessão de jogo na partida.            | Criança | 201, 400, 401, 403, 404, 409, 500 |
+| PATCH  | `/jogos-salvos/sessao/heartbeat` | Contabilizar o intervalo e renovar a validade.    | Criança | 200, 400, 401, 403, 404, 409, 500 |
+| PATCH  | `/jogos-salvos/sessao/pausar`    | Contabilizar o intervalo e pausar a sessão.       | Criança | 200, 400, 401, 403, 404, 409, 500 |
+| PATCH  | `/jogos-salvos/sessao/encerrar`  | Contabilizar o intervalo e encerrar a sessão.     | Criança | 200, 400, 401, 403, 404, 409, 500 |
 
 **Criar:** `perfilJogoId` e `nomeJogo` são obrigatórios. O personagem precisa pertencer à criança autenticada:
 
@@ -424,11 +457,55 @@ A listagem retorna array, inclusive `[]`, ordenado por `atualizadoEm` decrescent
 
 Partida de outra criança ou de personagem arquivado retorna 404. **DELETE remove o documento de `jogos_salvos`; não é exclusão lógica.** Retorna 204 sem corpo e preserva os históricos. Depois da exclusão, consultas por essa partida retornam 404; os registros permanecem nas consultas gerais da criança.
 
+#### Sessão de jogo e consumo diário
+
+Ao entrar no ambiente de jogo, use POST `/jogos-salvos/:id/sessao` com o JWT infantil e o ID da partida própria. Não exige body. O início exige permissão ativa, tempo disponível e ausência de outra sessão ativa e válida da mesma criança; uma segunda inicialização recebe 409 `SESSAO_JA_ATIVA`.
+
+O retorno 201 contém `jogoSalvo`, `sessaoId`, `estado`, `expiraEm`, `tempoUsadoHoje` e `limiteTempoDiario`. Guarde o identificador opaco gerado pelo servidor. Heartbeat, pausa, encerramento e registro de respostas devem enviar esse identificador:
+
+```json
+{
+  "sessaoId": "{{ _.sessao_id }}"
+}
+```
+
+Enquanto o jogo estiver ativo, inclusive quando a criança apenas observa o cenário, o cliente deve enviar heartbeat a cada **10 segundos**. A validade é de até **30 segundos**, limitada pelo saldo diário restante. Exemplo de retorno 200 do heartbeat:
+
+```json
+{
+  "sessaoId": "9bf8cda4-c99b-4b6d-a603-fba72ed6831a",
+  "estado": "ativa",
+  "expiraEm": "2026-10-29T15:00:40.000Z",
+  "tempoUsadoHoje": 22,
+  "limiteTempoDiario": 30
+}
+```
+
+O relógio do servidor determina os intervalos. O consumo é persistido em **segundos** em `tempoUsadoHoje`, compartilhado por todas as partidas da criança. O limite é configurado em minutos pelo responsável; `null` permite jogar sem teto diário, mantendo a contabilização.
+
+A referência diária usa `America/Sao_Paulo`. A renovação do dia é aplicada na próxima reconciliação; intervalos que cruzam a meia-noite são divididos, somando ao consumo de hoje somente o trecho do dia atual. Intervalos já contabilizados não são somados novamente.
+
+Ao pausar ou sair do ambiente de jogo, chame a operação correspondente. Ambas retornam 200 com `sessaoId`, `estado`, `tempoUsadoHoje` e `limiteTempoDiario`, contabilizam o intervalo pendente e interrompem novos acréscimos. Para retomar, use novamente POST `/:id/sessao`: ele cria outro identificador. Não existe endpoint separado de retomada.
+
+Sem encerramento explícito por fechamento inesperado, a contabilização é limitada à expiração da sessão. Heartbeat expirado não renova a sessão e retorna 409; é necessário iniciar outra. O cliente deve parar os heartbeats durante a pausa e reagir aos bloqueios do servidor.
+
+Versões condicionais impedem atualizações atrasadas de sobrescrever o estado atual. Heartbeat e início releem os dados após conflito. Permissão inativa ou saldo esgotado bloqueiam a continuidade. O registro de respostas reconcilia a sessão dentro de sua transação; o bloqueio temporal confirma o consumo e o encerramento sem criar tentativa ou estrelas. Sessões de outra criança ou de outra partida não autorizam respostas.
+
+#### Regras de progressão
+
+- As mesmas tarefas ativas e sua `ordem` são exigidas separadamente no fácil, médio e difícil de cada partida.
+- Um acerto por tarefa basta para a conclusão daquela tarefa naquele nível. Erros permanecem no histórico e não concluem; repetições não substituem tarefas pendentes.
+- Médio exige concluir todas as tarefas ativas do fácil; difícil exige concluir as do médio.
+- Um cômodo exige os três níveis completos. O próximo só é liberado após concluir todos os cômodos ativos anteriores por `ordem`.
+- Uma dificuldade sem tarefas ativas não é concluída. Cômodos e tarefas inativos não são exigidos na progressão.
+- `Comodo.dificuldadesDisponiveis` permanece no catálogo; a regra atual exige sempre os três níveis e não usa esse campo para definir uma sequência alternativa.
+- O histórico de outra partida não desbloqueia tarefas ou cômodos da partida atual.
+
 ### Registro de tentativa — 1 rota
 
-| Método | Endpoint                    | Objetivo                                                       | Acesso                                  | Principais status            |
-| ------ | --------------------------- | -------------------------------------------------------------- | --------------------------------------- | ---------------------------- |
-| POST   | `/historico-jogo/responder` | Registrar tentativa, calcular resultado e atualizar a partida. | Criança, com permissão ativa para jogar | 201, 400, 401, 403, 404, 500 |
+| Método | Endpoint                    | Objetivo                                                       | Acesso                                  | Principais status                 |
+| ------ | --------------------------- | -------------------------------------------------------------- | --------------------------------------- | --------------------------------- |
+| POST   | `/historico-jogo/responder` | Registrar tentativa, calcular resultado e atualizar a partida. | Criança, com permissão ativa para jogar | 201, 400, 401, 403, 404, 409, 500 |
 
 Body obrigatório:
 
@@ -438,11 +515,12 @@ Body obrigatório:
   "jogoSalvoId": "{{ _.jogo_salvo_id }}",
   "tarefaId": "{{ _.tarefa_id }}",
   "respostaEscolhidaId": "{{ _.resposta_id }}",
-  "dificuldade": "facil"
+  "dificuldade": "facil",
+  "sessaoId": "{{ _.sessao_id }}"
 }
 ```
 
-Todos os cinco campos são obrigatórios. `dificuldade` aceita `facil`, `medio` ou `dificil`. O servidor identifica a criança pelo JWT, confirma permissão, propriedade, relacionamentos, atividade do catálogo e desbloqueio.
+Todos os seis campos são necessários. `dificuldade` aceita `facil`, `medio` ou `dificil` e representa o nível da tentativa. `sessaoId` deve corresponder à sessão ativa da criança e à partida informada. Ausente, inválido ou incompatível retorna 409 `SESSAO_INVALIDA`. O servidor identifica a criança pelo JWT, confirma propriedade, relacionamentos, atividade do catálogo, progressão, permissão e tempo disponível.
 
 A alternativa deve pertencer à tarefa. O cliente não define acerto, número da tentativa nem pontuação. Exemplo de sucesso na primeira tentativa correta no fácil:
 
@@ -455,33 +533,57 @@ A alternativa deve pertencer à tarefa. O cliente não define acerto, número da
 }
 ```
 
-A tentativa é contada por partida, tarefa e dificuldade. Acertos concedem 1, 2 ou 3 estrelas em `facil`, `medio` ou `dificil`; erros concedem zero. A transação registra histórico e atualiza posição, estrelas e data da partida, além da última interação do personagem.
+A tentativa é contada por partida, tarefa e dificuldade. Acertos concedem 1, 2 ou 3 estrelas em `facil`, `medio` ou `dificil`; erros concedem zero. A transação reconcilia o consumo, registra histórico e atualiza posição, estrelas e data da partida, além da última interação do personagem. Falha inesperada reverte as gravações da transação. Bloqueios de sessão/tempo não criam histórico nem estrelas; o consumo é confirmado quando o bloqueio é identificado pela reconciliação da sessão correspondente.
 
 Permissão inativa e tarefa inativa retornam 403. Alternativa inexistente ou de outra tarefa retorna 400. Criança, tarefa, personagem ou partida não acessível retorna 404, conforme a validação alcançada. Bloqueios de progressão retornam 403 com os códigos descritos acima.
 
-### Progresso, histórico e desempenho gerais — 3 rotas
+### Progresso, histórico e desempenho gerais — 4 rotas
 
-| Método | Endpoint                                 | Objetivo                                              | Acesso            | Principais status            |
-| ------ | ---------------------------------------- | ----------------------------------------------------- | ----------------- | ---------------------------- |
-| GET    | `/criancas/:criancaId`                   | Consultar progresso geral por tarefa e dificuldade.   | Própria/vinculada | 200, 400, 401, 403, 404, 500 |
-| GET    | `/criancas/:criancaId/historico`         | Consultar todas as tentativas da criança.             | Própria/vinculada | 200, 400, 401, 403, 404, 500 |
-| GET    | `/criancas/:criancaId/resumo-desempenho` | Consultar indicadores gerais e desempenho por cômodo. | Própria/vinculada | 200, 400, 401, 403, 404, 500 |
+| Método | Endpoint                                 | Objetivo                                                           | Acesso            | Principais status            |
+| ------ | ---------------------------------------- | ------------------------------------------------------------------ | ----------------- | ---------------------------- |
+| GET    | `/criancas/:criancaId`                   | Consultar progresso geral por tarefa e dificuldade.                | Própria/vinculada | 200, 400, 401, 403, 404, 500 |
+| GET    | `/criancas/:criancaId/historico`         | Consultar todas as tentativas da criança.                          | Própria/vinculada | 200, 400, 401, 403, 404, 500 |
+| GET    | `/criancas/:criancaId/resumo-desempenho` | Consultar indicadores gerais e desempenho por cômodo.              | Própria/vinculada | 200, 400, 401, 403, 404, 500 |
+| GET    | `/criancas/:criancaId/evolucao-diaria`   | Consultar tentativas e percentual de acertos por dia de São Paulo. | Própria/vinculada | 200, 400, 401, 403, 404, 500 |
 
-Nas três rotas, `:criancaId` representa **`Usuario._id` da criança**. ID inválido retorna 400; perfil infantil inexistente, 404; acesso sem propriedade/vínculo, 403. Não precisam de body.
+Nas quatro rotas, `:criancaId` representa **`Usuario._id` da criança**. ID inválido retorna 400; perfil infantil inexistente, 404; acesso sem propriedade/vínculo, 403. Não precisam de body.
 
-| Consulta             | Estrutura principal da resposta                   |
-| -------------------- | ------------------------------------------------- |
-| Histórico geral      | `{ criancaId, totalTentativas, tentativas }`      |
-| Histórico da partida | `{ jogoSalvoId, totalTentativas, tentativas }`    |
-| Progresso geral      | `{ criancaId, resumo, tarefas }`                  |
-| Progresso da partida | `{ jogoSalvoId, estrelasTotal, resumo, tarefas }` |
-| Resumo de desempenho | `{ criancaId, resumo, desempenhoPorComodo }`      |
+| Consulta             | Estrutura principal da resposta                            |
+| -------------------- | ---------------------------------------------------------- |
+| Histórico geral      | `{ criancaId, totalTentativas, tentativas }`               |
+| Histórico da partida | `{ jogoSalvoId, totalTentativas, tentativas }`             |
+| Progresso geral      | `{ criancaId, resumo, tarefas }`                           |
+| Progresso da partida | `{ jogoSalvoId, estrelasTotal, resumo, tarefas, comodos }` |
+| Resumo de desempenho | `{ criancaId, resumo, desempenhoPorComodo }`               |
+| Evolução diária      | `{ criancaId, evolucao }`                                  |
 
 Históricos retornam tentativas sem agrupamento, ordenadas por `dataHora` decrescente. Progresso agrupa por tarefa + dificuldade: cada item contém `tarefaId`, `dificuldade`, `concluida`, `tentativas`, `acertos`, `erros` e `ultimaInteracao`. Ao existir acerto, o grupo fica concluído.
 
 O `resumo` do progresso contém `totalTentativas`, `acertos`, `erros`, `tarefasConcluidas` e `ultimaInteracao`. O resumo de desempenho inclui também `percentualAcertos` e `totalEstrelas`, com `desempenhoPorComodo` no nível superior.
 
-No desempenho, tarefas concluídas são contadas por IDs distintos, sem repetir por dificuldade. Percentuais são arredondados para duas casas. Sem histórico, indicadores ficam zerados, última interação é `null` e arrays ficam vazios. As consultas gerais preservam resultados de partidas excluídas e personagens arquivados.
+No progresso, `tarefasConcluidas` conta grupos tarefa + dificuldade com acerto. No desempenho, conta IDs distintos, sem repetir por dificuldade. São unidades diferentes. Percentuais são arredondados para duas casas. Sem histórico, indicadores ficam zerados, última interação é `null` e arrays de tentativas/tarefas ficam vazios. As consultas gerais preservam resultados de partidas excluídas e personagens arquivados.
+
+A evolução diária agrupa tentativas por dia em `America/Sao_Paulo`, em ordem cronológica, com `data`, `totalTentativas`, `acertos`, `erros` e `percentualAcertos`. Dias sem tentativas não são incluídos; sem histórico, retorna `evolucao: []`.
+
+#### Estados dos cômodos por partida
+
+GET `/jogos-salvos/:id/progresso` inclui `comodos`, preservando `resumo`, `tarefas` e `estrelasTotal`. O array contém somente cômodos ativos, ordenados por `Comodo.ordem`; cada item tem este formato:
+
+```json
+{
+  "comodoId": "{{ _.comodo_id }}",
+  "nome": "Quarto",
+  "estado": "disponivel"
+}
+```
+
+| Estado       | Regra                                                                                                           |
+| ------------ | --------------------------------------------------------------------------------------------------------------- |
+| `concluido`  | Todas as tarefas ativas do cômodo possuem acerto nos três níveis nesta partida.                                 |
+| `disponivel` | O cômodo não está concluído e todos os cômodos ativos anteriores estão completos; o primeiro começa disponível. |
+| `bloqueado`  | O cômodo não está concluído e existe cômodo ativo anterior pendente.                                            |
+
+Conclusão parcial, apenas fácil completo ou fácil+médio completos mantêm o cômodo disponível, sem liberar o próximo. Um cômodo sem tarefas ativas nunca é concluído; pode estar disponível quando seus anteriores estão completos, mas impede avançar aos seguintes. Histórico de outra criança ou partida não determina esses estados. O progresso geral da criança continua agregando suas partidas e não substitui o estado da partida selecionada.
 
 ## Testar no Insomnia
 
@@ -498,6 +600,7 @@ Crie uma coleção de requisições e um ambiente com estas variáveis:
   "perfil_crianca_id": "",
   "personagem_id": "",
   "jogo_salvo_id": "",
+  "sessao_id": "",
   "comodo_id": "",
   "tarefa_id": "",
   "resposta_id": ""
@@ -522,8 +625,9 @@ Os campos vazios devem ser preenchidos com os valores reais retornados. Os exemp
 6. Com o token do responsável, vincule a criança, consulte `/responsaveis/minhas-criancas` e ative a permissão em `/responsaveis/minhas-criancas/{{ _.perfil_crianca_id }}/permissao`.
 7. Com o token da criança, crie personagem e partida. Salve seus `_id` em `personagem_id` e `jogo_salvo_id`.
 8. Consulte cômodos, tarefas do cômodo e alternativas da tarefa. Preencha `comodo_id`, `tarefa_id` e `resposta_id` com os IDs relacionados efetivamente retornados.
-9. Registre a tentativa em POST `/historico-jogo/responder`, começando por posição disponível e dificuldade `facil`.
-10. Consulte a partida e seus resultados:
+9. Inicie POST `/jogos-salvos/{{ _.jogo_salvo_id }}/sessao` e salve `sessaoId` em `sessao_id`. Enquanto o ambiente de jogo estiver ativo, envie PATCH `/jogos-salvos/sessao/heartbeat` a cada 10 segundos com esse identificador.
+10. Registre a tentativa em POST `/historico-jogo/responder`, incluindo `sessaoId`, começando por posição disponível e dificuldade `facil`.
+11. Consulte a partida e seus resultados:
 
     ```text
     GET {{ _.base_url }}/jogos-salvos/{{ _.jogo_salvo_id }}
@@ -532,9 +636,12 @@ Os campos vazios devem ser preenchidos com os valores reais retornados. Os exemp
     GET {{ _.base_url }}/criancas/{{ _.usuario_crianca_id }}
     GET {{ _.base_url }}/criancas/{{ _.usuario_crianca_id }}/historico
     GET {{ _.base_url }}/criancas/{{ _.usuario_crianca_id }}/resumo-desempenho
+    GET {{ _.base_url }}/criancas/{{ _.usuario_crianca_id }}/evolucao-diaria
     ```
 
-As consultas por partida exigem token infantil. As três consultas gerais também aceitam o responsável vinculado. A jornada depende de catálogo previamente cadastrado por manutenção interna; as rotas públicas não permitem criá-lo.
+12. Ao pausar ou sair, use PATCH `/jogos-salvos/sessao/pausar` ou `/jogos-salvos/sessao/encerrar` com `sessaoId`. Para retomar, inicie outra sessão e atualize `sessao_id`.
+
+As consultas por partida exigem token infantil. As quatro consultas gerais também aceitam o responsável vinculado. A jornada depende de catálogo previamente cadastrado por manutenção interna; as rotas públicas não permitem criá-lo.
 
 ### Casos negativos úteis
 
@@ -550,6 +657,10 @@ As consultas por partida exigem token infantil. As três consultas gerais també
 | Alterar permissão de criança não vinculada            | 404                                       |
 | Consultar personagem ou partida de outra criança      | 404                                       |
 | Registrar resposta com permissão inativa              | 403                                       |
+| Registrar resposta sem `sessaoId`                     | 409 `SESSAO_INVALIDA`                     |
+| Renovar sessão expirada                               | 409 `SESSAO_EXPIRADA`                     |
+| Iniciar outra sessão enquanto uma ainda é válida      | 409 `SESSAO_JA_ATIVA`                     |
+| Limite diário atingido após reconciliar consumo       | 403 `LIMITE_TEMPO_ATINGIDO`               |
 | Informar ID malformado em consulta por ID do catálogo | 400                                       |
 | Consultar ID válido inexistente do catálogo           | 404                                       |
 | Consultar tarefa existente sem alternativas           | 200 com `[]`                              |
@@ -580,10 +691,10 @@ Cômodos possuem somente rotas de leitura declaradas. Funções de manutenção 
 - Não há endpoints de refresh token, logout com invalidação de JWT ou recuperação de senha.
 - Não há paginação ou filtros de consulta por query; não presuma que `?ativo=true` ou `?dificuldade=facil` alterem os resultados.
 - A progressão é verificada por partida: tarefas anteriores precisam de acerto na dificuldade; médio depende da conclusão do fácil, difícil depende do médio; cômodos anteriores são verificados nas três dificuldades fixas.
-- Os helpers de progressão consideram todas as tarefas ativas do cômodo. Não filtram essa conclusão pelo campo `Tarefa.dificuldade` nem usam `Comodo.dificuldadesDisponiveis` para substituir a sequência fixa.
+- Os helpers de progressão consideram as mesmas tarefas ativas nos três níveis. O campo `Tarefa.dificuldade` foi removido do Model; `Comodo.dificuldadesDisponiveis` não substitui a sequência obrigatória.
 - Não há sincronização automática das estrelas da partida com `PerfilJogo.estrelasTotal`. O resumo geral soma pontos do histórico; não soma estrelas do personagem.
 - `nivelAtual` existe no personagem, mas não há evolução automática de níveis implementada.
-- `limiteTempoDiario` e `tempoUsadoHoje` existem no perfil infantil, mas não representam controle efetivo de tempo nas operações atuais. O registro da tentativa preenche `tempoGastoSegundos` com zero.
+- O consumo diário é aplicado pelas sessões e antes de registrar respostas. `tempoGastoSegundos` de cada tentativa continua em zero; não representa o consumo diário de permanência no jogo.
 - Não há upload, hospedagem ou geração de áudio pela API. A mídia armazenada é apenas uma referência.
 - Não há limite implementado de uma única partida por personagem.
 - A retomada usa GET da partida e os campos de posição persistidos; não existe endpoint específico de retomada.

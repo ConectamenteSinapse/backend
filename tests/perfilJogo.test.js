@@ -401,6 +401,7 @@ test("Issue #71: DELETE preserva documento e bloqueia leitura, edição e novas 
   t.mock.method(Tarefa, "findById", async () => ({
     _id: tarefaId,
     ativo: true,
+    dificuldade: "facil",
   }));
   t.mock.method(Resposta, "findOne", async () => ({
     _id: respostaId,
@@ -415,6 +416,7 @@ test("Issue #71: DELETE preserva documento e bloqueia leitura, edição e novas 
     tarefaId,
     respostaEscolhidaId: respostaId,
     dificuldade: "facil",
+    sessaoId: "sessao-fixture-arquivado",
   });
   assert.deepEqual(res, {
     status: 404,

@@ -70,12 +70,6 @@ const tarefaSchema = new mongoose.Schema({
     ref: "Usuario",
     default: null,
   },
-
-  dificuldade: {
-    type: String,
-    required: true,
-    enum: ["facil", "medio", "dificil"],
-  },
 });
 tarefaSchema.index({ comodoId: 1, ordem: 1 }, { unique: true });
 const TarefaModel = mongoose.model("Tarefa", tarefaSchema);

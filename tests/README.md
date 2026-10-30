@@ -2,6 +2,224 @@
 
 Use Node.js 24 ou superior e as dependências do projeto instaladas.
 
+## Issue #107 — execução atual e resultados recentes
+
+A modelagem definitiva usa as mesmas tarefas nos três níveis. O registro de
+respostas exige uma sessão válida; fixtures de testes anteriores foram adaptadas
+para fornecer `sessaoId`, preservando autorização, histórico, estrelas e progressão.
+O progresso de partida inclui os estados dos cômodos. O contrato da API está
+documentado no [README principal](../README.md).
+
+### Regressão sem MongoDB
+
+Execute a partir de `backend`, sem carregar `.env` e com todas as flags desligadas:
+
+```powershell
+$env:RUN_ATLAS_TESTS = "0"
+$env:RUN_COMMIT_REAL_TESTS = "0"
+$env:RUN_CONCORRENCIA_REAL_TESTS = "0"
+node --test --test-concurrency=1 --test-reporter=tap
+```
+
+Os testes locais usam mocks de persistência ou não precisam de banco. Testes
+HTTP abrem servidores locais em portas livres. As integrações ignoradas por
+configuração não constituem execuções MongoDB aprovadas nem cenários desativados
+para esconder falhas. Os agrupadores ignorados não enumeram seus subtestes reais.
+
+### Integrações MongoDB isoladas
+
+Use apenas `MONGO_TEST_URI` com banco **`conectamente_testes`**, suporte a
+transações e os helpers de segurança existentes. Não há fallback para `MONGO_URI`.
+Credenciais ficam no ambiente, nunca no comando, nos relatórios ou no Git.
+Não execute outra suíte usando o mesmo catálogo ao mesmo tempo.
+
+```powershell
+$env:RUN_ATLAS_TESTS = "1"
+$env:RUN_COMMIT_REAL_TESTS = "1"
+$env:RUN_CONCORRENCIA_REAL_TESTS = "1"
+# .env só disponibiliza variáveis; o helper aceita exclusivamente o banco de testes.
+node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/estadosComodos.issue107.mongo.test.js
+```
+
+Para um conjunto explícito, o runner mantém uma suíte por processo e as executa
+sequencialmente com `--test-concurrency=1`:
+
+```powershell
+$integracoes107 = @(
+  "tests/progressao.issue107.mongo.test.js",
+  "tests/tempoJogoCondicional.issue107.mongo.test.js",
+  "tests/tempoJogoInicio.issue107.mongo.test.js",
+  "tests/tempoJogoCiclo.issue107.mongo.test.js",
+  "tests/sessoesHttp.issue107.mongo.test.js",
+  "tests/respostaTempo.issue107.mongo.test.js",
+  "tests/responsavelSessaoConcorrencia.issue107.mongo.test.js",
+  "tests/estadosComodos.issue107.mongo.test.js",
+  "tests/jornadaIntegrada.issue94.mongo.test.js"
+)
+node --env-file=.env --test --test-concurrency=1 --test-reporter=tap @integracoes107
+```
+
+As flags adicionais não substituem `RUN_ATLAS_TESTS`. As suítes de commit real
+exigem `RUN_COMMIT_REAL_TESTS=1`; a de concorrência com o responsável exige
+`RUN_CONCORRENCIA_REAL_TESTS=1`. Retorne as três flags a `0` antes de executar
+novamente a regressão sem banco. Não use `npm test` com flags ativas sem controlar
+quais integrações serão descobertas e sua concorrência.
+
+As fixtures registram IDs/chaves exclusivos antes de inserir, limpam apenas seus
+documentos e verificam ausência de resíduos por conexão independente. Alguns
+testes antigos usam transação externa descartada; isso não é prova de commit
+do Service. As suítes de sessões, respostas, concorrência e estados exercitam
+gravações e transações reais quando indicado em seus relatórios.
+
+### Validação após documentação e formatação
+
+| Execução                                           | Aprovados | Falhas | Ignorados |
+| -------------------------------------------------- | --------: | -----: | --------: |
+| Regressão completa sem banco                       |     1.063 |      0 |        47 |
+| Nove integrações MongoDB listadas no comando acima |       296 |      0 |         0 |
+| Total das execuções finais                         |     1.359 |      0 |        47 |
+
+As nove integrações foram executadas sequencialmente no código formatado:
+progressão (17), consumo condicional (17), início (25), ciclo (73), HTTP (50),
+respostas com tempo (36), concorrência com o responsável (22), estados dos
+cômodos (29) e jornada HTTP (27). Todas confirmaram zero resíduos por conexão
+independente. Não houve cancelamentos ou TODOs; os dois comandos retornaram 0.
+Os testes locais específicos já estão incluídos na regressão e não são somados
+novamente. As demais integrações não foram reexecutadas nesta etapa.
+
+Também passaram `npm.cmd run format:check`, a verificação explícita de
+`tests/README.md` (normalmente ignorado pelo Prettier) e `git diff --check`.
+O `--debug-check` do Prettier passou nos sete arquivos de produção formatados.
+Não houve edição manual de lógica ou refatoração: somente o formatador local
+escreveu nesses arquivos, com revisão do diff e regressões posteriores.
+Os links locais dos três documentos de entrega e os 22 exemplos JSON do README
+foram validados. Os relatórios históricos permanecem intactos.
+
+O texto local para revisão da issue está em
+[ISSUE_107_ATUALIZACAO_PROPOSTA.md](../ISSUE_107_ATUALIZACAO_PROPOSTA.md).
+Não foi publicado no GitHub. Nenhum banco de desenvolvimento foi acessado,
+nenhuma dependência foi instalada e nenhum commit, push ou PR foi realizado.
+
+### Evidências anteriores à etapa de documentação e formatação
+
+| Rodada                                          | Sem banco: aprovados/falhas/ignorados | MongoDB: aprovados/falhas/ignorados | Relatório                                                                         |
+| ----------------------------------------------- | ------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------- |
+| Adaptação das integrações antigas ao `sessaoId` | 1.036 / 0 / 45                        | 156 / 0 / 0                         | [Integrações existentes](integracoesSessoes.issue107.relatorio.md)                |
+| Correção da concorrência com o responsável      | 1.036 / 0 / 46                        | 306 / 0 / 0                         | [Concorrência e revalidação](responsavelSessaoConcorrencia.issue107.relatorio.md) |
+| Estados dos cômodos                             | 1.063 / 0 / 47                        | 106 / 0 / 0                         | [Estados e contrato HTTP](estadosComodos.issue107.relatorio.md)                   |
+
+As contagens incluem agrupadores. São rodadas e conjuntos diferentes, com testes
+repetidos entre elas: não some as linhas como cobertura única. Na rodada de
+estados, os 27 específicos locais já estão nos 1.063 aprovados; os 29 específicos
+MongoDB estão nos 106 aprovados com banco. As demais integrações não foram
+reexecutadas naquela rodada. A última regressão anterior descobriu 1.110 testes.
+
+Outros relatórios da #107, preservados com seus resultados e limitações históricos:
+[auxiliares](tempoJogoAuxiliares.issue107.relatorio.md),
+[consumo](tempoJogoConsumo.issue107.relatorio.md),
+[atualização condicional](tempoJogoCondicional.issue107.relatorio.md),
+[preparação do início](tempoJogoInicio.issue107.relatorio.md),
+[início efetivo](tempoJogoInicioEfetivo.issue107.relatorio.md),
+[ciclo de sessões](tempoJogoCiclo.issue107.relatorio.md),
+[HTTP](sessoesHttp.issue107.relatorio.md) e
+[respostas com tempo](respostaTempo.issue107.relatorio.md).
+Os diagnósticos de falhas antigas devem ser lidos junto das revalidações posteriores.
+
+## Issue #107 — registro histórico da validação da modelagem definitiva
+
+Esta seção registra a rodada anterior ao controle efetivo de sessões. Os números
+e a pendência documental abaixo são históricos; consulte as seções atuais acima
+e os relatórios posteriores para o contrato vigente.
+
+Cada tarefa é cadastrada uma única vez por cômodo, sem `Tarefa.dificuldade`.
+Os mesmos IDs e a mesma ordem são usados no fácil → médio → difícil.
+`JogoSalvo.dificuldade` representa a seleção/retomada da partida;
+`HistoricoJogo.dificuldade` registra o nível efetivo de cada tentativa.
+A ordem e a conclusão são independentes por partida e dificuldade.
+Um acerto por tarefa basta; repetições adicionais não são obrigatórias.
+O próximo cômodo exige concluir todas as tarefas nos três níveis anteriores.
+
+- `progressao.issue107.test.js`: 22 testes com Services reais e persistência
+  simulada pelo helper existente. Cobre tarefas ativas/inativas, catálogo vazio,
+  isolamento dos acertos por dificuldade/partida/cômodo, ordem reiniciada em cada
+  nível, reutilização dos IDs, pontuação, dificuldade inválida/ausente, manutenção
+  interna sem dificuldade e compatibilidade simulada com o campo legado.
+- `historicoJogoController.unit.test.js`: 10 testes. O caso de incompatibilidade
+  da interpretação anterior foi substituído pelo contrato da dificuldade da tentativa.
+- `progressao.issue107.mongo.test.js`: 16 cenários e um agrupador. HTTP, queries
+  e commits reais; compara documentos por conexão independente e monitora ausência
+  de escrita nas rejeições. Confere os mesmos IDs em cada nível e CRUD interno
+  de tarefas sem dificuldade. O campo antigo é inserido com driver nativo somente
+  em uma fixture própria, para comprovar compatibilidade real, sem migrar dados.
+  Jogar preserva o catálogo; PUT/PATCH sem dificuldade preservam os demais campos,
+  inclusive o campo legado no BSON. As rotas públicas de manutenção ficam desativadas.
+
+Fixtures reaproveitadas e simplificadas: `helpers/catalogo.js`,
+`helpers/jogoSalvoMock.js`, `helpers/progresso.js`, `helpers/midiaIssue90.js`.
+Foram realinhados `jogoSalvo.issue73.test.js`, `historicoJogo.test.js`,
+`comodos.test.js`, `personagemResposta.test.js`, `progresso.test.js`,
+`jornadaIntegrada.issue94.mongo.test.js`, `midia.issue90.test.js` e o teste
+unitário do Controller. Algumas reversões de expectativas agora coincidem com HEAD;
+isso não elimina os cenários reaproveitados. Autorização, histórico e transações
+permanecem cobertos. Os mocks legados de perfil/concorrência foram preservados.
+
+A jornada #94 voltou a usar três tarefas/seis alternativas: nove tentativas,
+oito acertos, um erro, 14 estrelas, sete conclusões tarefa+dificuldade e três
+tarefas distintas. Esses dois indicadores medem coisas diferentes.
+
+Execução específica local, sem carregar `.env`:
+
+```powershell
+$env:RUN_ATLAS_TESTS='0'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --test --test-concurrency=1 --test-reporter=tap tests/progressao.issue107.test.js tests/historicoJogoController.unit.test.js tests/jogoSalvo.issue73.test.js tests/midia.issue90.test.js
+node --test --test-concurrency=1 --test-reporter=tap
+```
+
+Integração específica, isolada e com as guardas de `atlasSeguro.js`:
+
+```powershell
+$env:RUN_ATLAS_TESTS='1'
+$env:RUN_COMMIT_REAL_TESTS='0'
+$env:RUN_CONCORRENCIA_REAL_TESTS='0'
+node --env-file=.env --test --test-concurrency=1 --test-reporter=tap tests/progressao.issue107.mongo.test.js
+```
+
+As demais integrações foram executadas uma por processo, sequencialmente.
+`transacaoResposta.test.js` exige também `RUN_COMMIT_REAL_TESTS=1`;
+`concorrenciaPersonagens.mongo.test.js` exige `RUN_CONCORRENCIA_REAL_TESTS=1`.
+Todas usam exclusivamente `MONGO_TEST_URI` em `conectamente_testes`, sem fallback
+para `MONGO_URI`. Limpeza limitada aos IDs/perfis próprios; ausência de resíduos
+conferida nos teardowns. Nenhuma exclusão geral ou alteração do banco de desenvolvimento.
+
+Resultados em 29/10/2026, Node.js 24.22.1:
+
+| Execução                                         | Aprovados | Falhas | Ignorados |
+| ------------------------------------------------ | --------: | -----: | --------: |
+| Específicos locais (#107, Controller, #73 e #90) |       166 |      0 |         0 |
+| Regressão completa sem banco                     |       667 |      0 |        40 |
+| MongoDB específico #107                          |        17 |      0 |         0 |
+| Demais 17 suítes MongoDB disponíveis             |       283 |      0 |         0 |
+
+Os específicos locais estão incluídos na regressão; contagens incluem agrupadores.
+Os 40 ignorados são integrações opt-in na execução sem banco. Foram exercitados
+posteriormente com MongoDB real: **300 aprovações**, sem falhas ou ignorados.
+A regressão inicial, antes de atualizar as expectativas, teve 640 aprovados,
+24 falhas e 40 ignorados; essas falhas foram resolvidas nos testes/fixtures.
+
+Histórico: a rodada anterior teve 29 específicos, 665 de regressão local,
+15 de integração #107 e 169 de regressão MongoDB aprovados. Esses resultados
+usavam a interpretação anterior de tarefas exclusivas por dificuldade e não
+certificavam a modelagem definitiva; suas expectativas foram revistas.
+
+Nenhuma inconsistência funcional encontrada nos cenários executados.
+O README principal ainda cita dificuldade entre os campos de tarefa; essa
+documentação ficou pendente, sem alteração fora de tests/.
+O Mongoose emitiu avisos de depreciação de `new: true`, sem falhas.
+Arquivos de produção preservados por comparação de hashes contra o início
+desta etapa; nenhuma dependência instalada, commit ou push.
+
 ## Issue #105 — evolução diária do progresso
 
 `GET /criancas/:criancaId/evolucao-diaria` recebe `Usuario._id`, como as
@@ -298,7 +516,7 @@ todos os JWTs vêm de `POST /usuarios/auth`. Não importa `index.js` nem carrega
 `.env` automaticamente. Reutiliza `atlasSeguro.js` e `catalogo.js`.
 
 Usa somente `MONGO_TEST_URI` em `conectamente_testes`, com `RUN_ATLAS_TESTS=1`.
-As flags adicionais continuam reservadas às suítes anteriores indicadas abaixo.
+As flags adicionais também são exigidas pelas suítes #107 de commit e concorrência, conforme o contrato atual descrito neste README.
 Uma segunda conexão verifica hashes, perfis, vínculo, permissão, histórico e
 estrelas persistidos. Atividade, personagem e partida são fixtures mínimas de
 suporte à prova negar → permitir → revogar; não constituem a próxima fase de
@@ -357,8 +575,8 @@ para `MONGO_URI`, banco aleatório ou carregamento automático de `.env` nos hel
 Não incluir credenciais em comandos, logs ou arquivos versionados.
 
 - `RUN_ATLAS_TESTS=1`: autorização central, verificada dentro das funções de conexão.
-- `RUN_COMMIT_REAL_TESTS=1`: autorização adicional para `transacaoResposta.test.js`.
-- `RUN_CONCORRENCIA_REAL_TESTS=1`: autorização adicional para `concorrenciaPersonagens.mongo.test.js`.
+- `RUN_COMMIT_REAL_TESTS=1`: autorização adicional para `transacaoResposta.test.js` e as suítes #107 que usam `motivoIgnorarCommitReal()` com a permissão padrão.
+- `RUN_CONCORRENCIA_REAL_TESTS=1`: autorização adicional para `concorrenciaPersonagens.mongo.test.js` e `responsavelSessaoConcorrencia.issue107.mongo.test.js`.
 
 As flags adicionais não substituem a central. URI ausente/inválida ou flag
 ausente ignora a suíte; chamada direta ao helper é bloqueada antes do driver.
@@ -421,7 +639,6 @@ flags habilitadas como primeira validação de um ambiente.
 
 Os relatórios históricos `issue71-*.md` e `issue72-*.md` podem conter destinos,
 comandos e diagnósticos anteriores. Não substituem este contrato de segurança.
-
 
 ## Issue #58 — resumo geral de desempenho
 

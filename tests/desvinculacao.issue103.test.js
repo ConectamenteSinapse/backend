@@ -28,6 +28,7 @@ async function preparar(t, extras = {}) {
       String(c.responsavelId) === String(filtro.responsavelId));
     if (!doc) return null;
     Object.assign(doc, update.$set);
+    for (const [campo, valor] of Object.entries(update.$inc ?? {})) doc[campo] = (doc[campo] ?? 0) + valor;
     return doc;
   });
   t.mock.method(Crianca, "find", filtro => ({
@@ -57,11 +58,11 @@ for (const [nome, extras] of [
       status: 200, dados: { mensagem: "Criança desvinculada com sucesso" },
     });
     assert.deepEqual(j.estado(), antes.map(c => c._id === String(j.crianca._id)
-      ? { ...c, responsavelId: null, permissaoAtiva: false } : c));
+      ? { ...c, responsavelId: null, permissaoAtiva: false, sessaoJogoVersao: c.sessaoJogoVersao + 1 } : c));
     assert.deepEqual(j.consultas, [{ usuarioId: String(j.responsavel.usuarioId) }]);
     assert.deepEqual(j.atualizacoes, [{
       filtro: { _id: String(j.crianca._id), responsavelId: j.responsavel._id },
-      update: { $set: { responsavelId: null, permissaoAtiva: false } },
+      update: { $set: { responsavelId: null, permissaoAtiva: false }, $inc: { sessaoJogoVersao: 1 } },
       opcoes: { new: true, runValidators: true },
     }]);
   });
@@ -139,5 +140,5 @@ test("#103 HTTP: body não pode escolher responsável nem alterar outros campos"
     limiteTempoDiario: 0, tempoUsadoHoje: 0, dataNascimento: "2020-01-01",
   } })).status, 200);
   assert.deepEqual(j.estado(), antes.map(c => c._id === String(j.crianca._id)
-    ? { ...c, responsavelId: null, permissaoAtiva: false } : c));
+    ? { ...c, responsavelId: null, permissaoAtiva: false, sessaoJogoVersao: c.sessaoJogoVersao + 1 } : c));
 });

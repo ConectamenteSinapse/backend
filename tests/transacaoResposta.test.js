@@ -21,6 +21,7 @@ import {
   motivoIgnorarCommitReal,
 } from "./helpers/bancoCommitReal.js";
 import { criarCatalogo } from "./helpers/catalogo.js";
+import { garantirSessaoResposta } from "./helpers/sessaoRespostaMongo.js";
 
 import { limparRegistrosTeste } from "./helpers/atlasSeguro.js";
 
@@ -34,6 +35,7 @@ test(
   async (t) => {
     let server;
     let conexao;
+    let leituraLimpeza;
     const execucaoId = `issue72-${randomUUID()}`;
     const segredoAnterior = process.env.JWT_SECRET;
     const registros = new Map();
@@ -59,9 +61,18 @@ test(
             await limparRegistrosTeste(
               conexao, registros, Historico, registros.get(Perfil) ?? [],
             );
+            if (leituraLimpeza) {
+              confirmarBancoCommitReal(leituraLimpeza);
+              for (const [Model, ids] of registros) assert.equal(await leituraLimpeza.db.collection(Model.collection.name)
+                .countDocuments({ _id: { $in: ids } }), 0);
+              assert.equal(await leituraLimpeza.db.collection(Historico.collection.name)
+                .countDocuments({ perfilJogoId: { $in: registros.get(Perfil) ?? [] } }), 0);
+              t.diagnostic("Commit/concorrência: zero resíduos por conexão independente");
+            }
           }
         }
       } finally {
+        await leituraLimpeza?.close();
         await mongoose.disconnect();
         if (segredoAnterior === undefined) delete process.env.JWT_SECRET;
         else process.env.JWT_SECRET = segredoAnterior;
@@ -69,6 +80,7 @@ test(
     });
 
     conexao = await conectarBancoCommitReal({ monitorCommands: true });
+    leituraLimpeza = await conectarBancoCommitReal({ leitura: true });
     t.diagnostic("Banco confirmado antes das gravações: conectamente_testes");
     await prepararColecoesCommitReal(conexao);
     client = mongoose.connection.getClient();
@@ -109,6 +121,7 @@ test(
     await once(server, "listening");
 
     const partidas = new Map();
+    const sessoes = new Map();
     async function novoPerfil() {
       const perfil = await inserir(Perfil, {
         criancaId: crianca._id,
@@ -122,6 +135,7 @@ test(
         nomeJogo: "Commit real",
       });
       partidas.set(String(perfil._id), partida);
+      sessoes.set(String(perfil._id), await garantirSessaoResposta(usuario._id, partida._id));
       return perfil;
     }
 
@@ -144,6 +158,7 @@ test(
               tarefa[correta ? "correta" : "incorreta"]._id,
             ),
             dificuldade: "facil",
+            sessaoId: sessoes.get(String(perfil._id)),
           }),
         },
       );

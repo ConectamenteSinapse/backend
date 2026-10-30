@@ -126,11 +126,12 @@ test("#103 MongoDB: desvinculação, listagem e preservação por conexão indep
     assert.equal(alvo.limiteTempoDiario, 45);
     alvo.responsavelId = null;
     alvo.permissaoAtiva = false;
+    alvo.sessaoJogoVersao = (alvo.sessaoJogoVersao ?? 0) + 1;
     assert.deepEqual(await desvincular(crianca._id), {
       status: 200, dados: { mensagem: "Criança desvinculada com sucesso" },
     });
     assert.deepEqual(await estado(), esperado,
-      "Todos os usuários, responsáveis e crianças devem permanecer; só dois campos podem mudar");
+      "Somente vínculo, permissão e versão podem mudar; consumo e demais documentos devem permanecer");
     assert.deepEqual(await listarIds(), [String(irma._id)], "Outra criança deve continuar vinculada");
     assert.deepEqual(await listarIds({
       usuario: { id: String(outroUsuario._id), perfil: "responsavel" },
@@ -146,6 +147,7 @@ test("#103 MongoDB: desvinculação, listagem e preservação por conexão indep
     assert.equal(alvo.limiteTempoDiario, null);
     assert.equal(alvo.permissaoAtiva, false);
     alvo.responsavelId = null;
+    alvo.sessaoJogoVersao = (alvo.sessaoJogoVersao ?? 0) + 1;
     assert.deepEqual(await desvincular(irma._id, { body: {
       usuarioId: String(id()), responsavelId: String(outroResponsavel._id),
       permissaoAtiva: true, limiteTempoDiario: 0, tempoUsadoHoje: 0,

@@ -167,6 +167,9 @@ const alterarPermissaoCrianca = async (
       $set: {
         permissaoAtiva: permissaoAtiva,
       },
+      $inc: {
+        sessaoJogoVersao: 1,
+      },
     },
     {
       new: true,
@@ -210,6 +213,9 @@ const alterarLimiteTempoCrianca = async (
       $set: {
         limiteTempoDiario: limiteTempoDiario,
       },
+      $inc: {
+        sessaoJogoVersao: 1,
+      },
     },
     {
       new: true,
@@ -247,6 +253,9 @@ const desvincularCrianca = async (usuarioId, criancaId) => {
       $set: {
         responsavelId: null,
         permissaoAtiva: false,
+      },
+      $inc: {
+        sessaoJogoVersao: 1,
       },
     },
     {
