@@ -45,22 +45,29 @@ Utilize Node.js 24 ou superior para trabalhar também com a infraestrutura de te
 
    ```dotenv
    PORT=4000
-   FRONTEND_URL=http://localhost:3000
-   MONGO_URI=mongodb+srv://USUARIO:SENHA@SEU_CLUSTER.mongodb.net/BANCO_DO_AMBIENTE
-   JWT_SECRET=SUBSTITUA_POR_UM_SEGREDO_PROPRIO
    ```
 
-   A aplicação conecta pelo `MONGO_URI`. O registro de respostas usa transações e requer uma implantação MongoDB que as suporte, como um cluster Atlas ou replica set. Não publique credenciais ou tokens.
+FRONTEND_URL=http://localhost:3000
+
+MONGO_AMBIENTE=atlas
+MONGO_URI=mongodb+srv://USUARIO:SENHA@SEU_CLUSTER.mongodb.net/conectamente
+MONGO_URI_LOCAL=mongodb://127.0.0.1:27018/conectamente_demo?replicaSet=rs0&directConnection=true
+
+JWT_SECRET=SUBSTITUA_POR_UM_SEGREDO_PROPRIO
+
+````
+
+A aplicação conecta pelo `MONGO_URI`. O registro de respostas usa transações e requer uma implantação MongoDB que as suporte, como um cluster Atlas ou replica set. Não publique credenciais ou tokens.
 
 3. Inicie a aplicação:
 
-   ```bash
-   npm start
-   ```
+```bash
+npm start
+````
 
 A URL base na configuração local acima é `http://localhost:4000`. Sem `PORT`, a aplicação utiliza a porta 3000. Os endpoints abaixo são relativos à base do backend, sem prefixo `/api`.
 
-A rota inicial confirma atendimento HTTP. Ela não testa a conexão com o banco: a inicialização atual não aguarda a conclusão da conexão antes de abrir a porta.
+A rota inicial confirma o atendimento HTTP. Na inicialização, o backend aguarda a conexão com o MongoDB antes de abrir a porta HTTP. Se a conexão falhar ou a configuração estiver inválida, o servidor não inicia.
 
 ### Configuração do CORS
 

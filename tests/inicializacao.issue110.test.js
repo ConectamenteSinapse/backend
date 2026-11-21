@@ -23,7 +23,7 @@ function promessaControlada() {
 
 function isolar(t) {
   const anteriores = Object.fromEntries(
-    ["MONGO_URI", "FRONTEND_URL", "PORT"].map((chave) => [chave, process.env[chave]]),
+    ["MONGO_AMBIENTE", "MONGO_URI_LOCAL", "MONGO_URI", "FRONTEND_URL", "PORT"].map((chave) => [chave, process.env[chave]]),
   );
   const exitCode = process.exitCode;
   t.after(() => {
@@ -33,6 +33,8 @@ function isolar(t) {
     }
     process.exitCode = exitCode;
   });
+  delete process.env.MONGO_AMBIENTE;
+  delete process.env.MONGO_URI_LOCAL;
   process.env.MONGO_URI = uri;
   process.env.FRONTEND_URL = "http://localhost:3000";
   process.exitCode = undefined;
