@@ -1,4 +1,14 @@
-PORT=???
-MONGO_URI=mongodb+srv://USUARIO:SENHA@SEU_CLUSTER.mongodb.net/conectamente
-JWT_SECRET=COLOQUE_AQUI_UMA_CHAVE_SECRETA
+PORT=4000
 FRONTEND_URL=http://localhost:3000
+
+# Ambiente do MongoDB: atlas ou local
+MONGO_AMBIENTE=atlas
+
+# Conexão online (MongoDB Atlas)
+MONGO_URI=mongodb+srv://USUARIO:SENHA@SEU_CLUSTER.mongodb.net/conectamente
+
+# Conexão offline (MongoDB Docker)
+MONGO_URI_LOCAL=mongodb://127.0.0.1:27018/conectamente_demo?replicaSet=rs0&directConnection=true
+
+# Autenticação
+JWT_SECRET=COLOQUE_AQUI_UMA_CHAVE_SECRETA

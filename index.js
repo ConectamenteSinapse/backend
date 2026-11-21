@@ -27,8 +27,7 @@ dotenv.config();
 app.use(cors({ origin: process.env.FRONTEND_URL || false }));
 //Permite que o Express interprete dados enviados no  formato Json
 app.use(express.json());
-//Conectando o backend ao MongoDB Atlas
-connectDB();
+
 // definidnod o a porta que o servidor ficara disponivel, e colocando a variavel de ambiente na porta
 const port = process.env.PORT || 3000;
 
@@ -65,7 +64,14 @@ app.use((error, req, res, next) => {
 app.use((req, res) => {
   return res.status(404).json({ erro: true, mensagem: "Rota não encontrada" });
 });
-//inciando o servidor
-app.listen(port, () => {
-  console.log(`Servidor rodando em http://localhost:${port}`);
-});
+//inciando o servidor e conecctando no banco
+try {
+  await connectDB();
+
+  app.listen(port, () => {
+    console.log(`Servidor rodando em http://localhost:${port}`);
+  });
+} catch (error) {
+  console.error(error.message);
+  process.exitCode = 1;
+}
